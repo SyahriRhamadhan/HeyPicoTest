@@ -38,6 +38,7 @@ copy .env.example .env
 ```
 
 3. Update `.env` with your own `GOOGLE_MAPS_API_KEY`.
+   You can set `DEFAULT_LOCATION` to handle prompts without explicit location.
 
 Map provider modes:
 
@@ -71,6 +72,41 @@ Request body:
 }
 ```
 
+### Assistant (Auto mode: Chat or Map)
+
+`POST /api/assistant`
+
+Request:
+
+```json
+{
+  "prompt": "explain what REST API is"
+}
+```
+
+Possible response (chat mode):
+
+```json
+{
+  "mode": "chat",
+  "prompt": "explain what REST API is",
+  "answer": "..."
+}
+```
+
+Possible response (map mode):
+
+```json
+{
+  "mode": "map",
+  "prompt": "find coffee shops in Batam",
+  "intent": { "query": "coffee shops", "location": "Batam", "placeType": "cafe" },
+  "provider": "openstreetmap",
+  "totalResults": 5,
+  "places": []
+}
+```
+
 Response (example):
 
 ```json
@@ -94,6 +130,15 @@ Response (example):
       "embedUrl": "https://www.google.com/maps?q=...&output=embed"
     }
   ]
+}
+```
+
+If user context is too generic (for example: `find coffee` without area), API may return:
+
+```json
+{
+  "needsClarification": true,
+  "clarificationQuestion": "Please specify the city or area first..."
 }
 ```
 

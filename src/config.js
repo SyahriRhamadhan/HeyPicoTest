@@ -4,6 +4,7 @@ dotenv.config();
 
 export const config = {
   port: Number(process.env.PORT ?? 3001),
+  defaultLocation: process.env.DEFAULT_LOCATION ?? "Batam",
   ollamaBaseUrl: process.env.OLLAMA_BASE_URL ?? "http://localhost:11434",
   ollamaModel: process.env.OLLAMA_MODEL ?? "qwen2.5-coder:7b",
   mapProvider: process.env.MAP_PROVIDER ?? "auto",

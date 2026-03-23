@@ -28,6 +28,23 @@ const inferAmenities = (query, placeType = "") => {
     return ["bar", "pub"];
   }
 
+  if (/(hospital|clinic|doctor)/.test(text)) {
+    return ["hospital", "clinic", "doctors"];
+  }
+
+  if (/(atm|bank)/.test(text)) {
+    return ["atm", "bank"];
+  }
+
+  if (/(pharmacy|apotek)/.test(text)) {
+    return ["pharmacy"];
+  }
+
+  // For non-amenity POIs (beach, landmarks, tourist spots), we avoid forcing amenity filters.
+  if (/(beach|pantai|landmark|tourist|attraction|museum|park|nature)/.test(text)) {
+    return [];
+  }
+
   return ["restaurant", "cafe"];
 };
 
@@ -73,6 +90,10 @@ const searchNominatimText = async (searchText, limit = 5) => {
 };
 
 const buildOverpassQuery = (amenities, lat, lng, radius = 10000) => {
+  if (!amenities.length) {
+    return "";
+  }
+
   const clauses = amenities
     .flatMap((amenity) => [
       `node(around:${radius},${lat},${lng})[amenity=${amenity}];`,
@@ -119,36 +140,52 @@ export const searchPlacesOsm = async ({ query, location, placeType }) => {
   const requestQuery = `${query} in ${location}`;
   const amenities = inferAmenities(query, placeType);
   const geo = await geocodeLocation(location);
-  const overpassQuery = buildOverpassQuery(amenities, geo.lat, geo.lng);
-  const data = await queryOverpass(overpassQuery);
+  let places = [];
 
-  let places = (data?.elements ?? []).slice(0, 5).map((place) => {
-    const lat = Number(place.lat ?? place.center?.lat);
-    const lng = Number(place.lon ?? place.center?.lon);
-    const name = place.tags?.name || place.tags?.brand || "Unnamed place";
-    const formattedAddress = place.tags?.["addr:full"] || geo.displayName;
+  if (amenities.length > 0) {
+    try {
+      const overpassQuery = buildOverpassQuery(amenities, geo.lat, geo.lng);
+      const data = await queryOverpass(overpassQuery);
 
-    return {
-      name,
-      formattedAddress,
-      rating: null,
-      location: { lat, lng },
-      mapsUrl: toMapsSearchUrl(name, formattedAddress),
-      embedUrl: toEmbedUrl(lat, lng)
-    };
-  });
+      places = (data?.elements ?? []).slice(0, 5).map((place) => {
+        const lat = Number(place.lat ?? place.center?.lat);
+        const lng = Number(place.lon ?? place.center?.lon);
+        const name = place.tags?.name || place.tags?.brand || "Unnamed place";
+        const formattedAddress = place.tags?.["addr:full"] || geo.displayName;
+
+        return {
+          name,
+          formattedAddress,
+          rating: null,
+          location: { lat, lng },
+          mapsUrl: toMapsSearchUrl(name, formattedAddress),
+          embedUrl: toEmbedUrl(lat, lng)
+        };
+      });
+    } catch {
+      // Overpass is public and can be unstable/time out; continue to text-search fallback.
+      places = [];
+    }
+  }
 
   // Secondary fallback for unstable Overpass responses:
   // run plain Nominatim text search using keyword + location.
   if (places.length === 0) {
     const fallbackTerms = [
       `${query} ${location}`,
-      `${placeType || "cafe"} ${location}`,
+      `${placeType || "place"} ${location}`,
+      `tourist attraction ${location}`,
       `cafe ${location}`
     ];
 
     for (const term of fallbackTerms) {
-      const fallbackData = await searchNominatimText(term, 5);
+      let fallbackData = [];
+
+      try {
+        fallbackData = await searchNominatimText(term, 5);
+      } catch {
+        fallbackData = [];
+      }
 
       places = fallbackData.slice(0, 5).map((place) => {
         const lat = Number(place.lat);
