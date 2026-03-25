@@ -57,6 +57,40 @@ const loadGoogleMapsScript = (() => {
   };
 })();
 
+const parseLatLng = (value) => {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+};
+
+const extractLatLngFromMapsUrl = (mapsUrl) => {
+  const raw = String(mapsUrl || "");
+  if (!raw) return null;
+
+  try {
+    const url = new URL(raw);
+    const query = url.searchParams.get("query") || "";
+    if (query.includes(",")) {
+      const [lat, lng] = query.split(",").map((part) => parseLatLng(part));
+      if (lat !== null && lng !== null) {
+        return { lat, lng };
+      }
+    }
+  } catch {
+    // ignore URL parse errors
+  }
+
+  const match = raw.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
+  if (match) {
+    const lat = parseLatLng(match[1]);
+    const lng = parseLatLng(match[2]);
+    if (lat !== null && lng !== null) {
+      return { lat, lng };
+    }
+  }
+
+  return null;
+};
+
 function GoogleMapCanvas({ places, selectedIndex }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
@@ -64,6 +98,7 @@ function GoogleMapCanvas({ places, selectedIndex }) {
   const infoWindowRef = useRef(null);
   const selectedCircleRef = useRef(null);
   const [mapError, setMapError] = useState("");
+  const [mapReady, setMapReady] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -84,6 +119,8 @@ function GoogleMapCanvas({ places, selectedIndex }) {
             gestureHandling: "greedy"
           });
         }
+
+        setMapReady(true);
       })
       .catch((error) => {
         if (active) setMapError(error.message);
@@ -91,13 +128,14 @@ function GoogleMapCanvas({ places, selectedIndex }) {
 
     return () => {
       active = false;
+      setMapReady(false);
     };
   }, []);
 
   useEffect(() => {
     const maps = window.google?.maps;
     const map = mapRef.current;
-    if (!maps || !map) return;
+    if (!maps || !map || !mapReady) return;
 
     markersRef.current.forEach((marker) => marker.setMap(null));
     markersRef.current = [];
@@ -107,102 +145,169 @@ function GoogleMapCanvas({ places, selectedIndex }) {
       selectedCircleRef.current = null;
     }
 
-    const valid = (places || [])
-      .map((place, index) => ({
+    let cancelled = false;
+
+    const base = (places || []).map((place, index) => {
+      const fromLocation = {
+        lat: parseLatLng(place?.location?.lat),
+        lng: parseLatLng(place?.location?.lng)
+      };
+      const fromUrl = extractLatLngFromMapsUrl(place?.mapsUrl);
+
+      return {
         index,
         name: place.name,
         formattedAddress: place.formattedAddress,
-        lat: Number(place?.location?.lat),
-        lng: Number(place?.location?.lng)
-      }))
-      .filter((item) => Number.isFinite(item.lat) && Number.isFinite(item.lng));
-
-    if (!valid.length) return;
-
-    const bounds = new maps.LatLngBounds();
-    if (!infoWindowRef.current) {
-      infoWindowRef.current = new maps.InfoWindow();
-    }
-    const infoWindow = infoWindowRef.current;
-
-    valid.forEach((item, markerIndex) => {
-      const position = { lat: item.lat, lng: item.lng };
-      bounds.extend(position);
-
-      const marker = new maps.Marker({
-        map,
-        position,
-        label: {
-          text: `${markerIndex + 1}`,
-          color: "#ffffff",
-          fontSize: "11px",
-          fontWeight: "700"
-        },
-        icon: {
-          path: maps.SymbolPath.CIRCLE,
-          scale: 10,
-          fillColor: "#ef4444",
-          fillOpacity: 1,
-          strokeColor: "#ffffff",
-          strokeWeight: 2
-        },
-        title: item.name,
-        animation: markerIndex === 0 ? maps.Animation.DROP : undefined
-      });
-
-      marker.addListener("click", () => {
-        infoWindow.setContent(
-          `<div style="color:#111827;font-family:Segoe UI,Arial,sans-serif;line-height:1.4;">
-             <strong>${item.name}</strong><br/>${item.formattedAddress || ""}
-           </div>`
-        );
-        infoWindow.open({ anchor: marker, map });
-      });
-
-      markersRef.current.push(marker);
+        mapsUrl: place.mapsUrl,
+        lat: fromLocation.lat ?? fromUrl?.lat ?? null,
+        lng: fromLocation.lng ?? fromUrl?.lng ?? null
+      };
     });
 
-    const selected = valid.find((item) => item.index === selectedIndex);
-    const focusTarget = selected || valid[0];
+    const renderMarkers = (valid) => {
+      if (!valid.length) return;
 
-    if (focusTarget) {
-      map.setCenter({ lat: focusTarget.lat, lng: focusTarget.lng });
-      map.setZoom(valid.length === 1 ? 15 : 13);
-      maps.event.trigger(map, "resize");
-      map.panTo({ lat: focusTarget.lat, lng: focusTarget.lng });
-    } else if (valid.length === 1) {
-      map.setCenter({ lat: valid[0].lat, lng: valid[0].lng });
-      map.setZoom(15);
-    } else {
-      map.fitBounds(bounds, 40);
-    }
+      const bounds = new maps.LatLngBounds();
+      if (!infoWindowRef.current) {
+        infoWindowRef.current = new maps.InfoWindow();
+      }
+      const infoWindow = infoWindowRef.current;
 
-    if (focusTarget) {
-      selectedCircleRef.current = new maps.Circle({
-        map,
-        center: { lat: focusTarget.lat, lng: focusTarget.lng },
-        radius: 150,
-        strokeColor: "#1d4ed8",
-        strokeOpacity: 0.9,
-        strokeWeight: 2,
-        fillColor: "#60a5fa",
-        fillOpacity: 0.2
+      valid.forEach((item, markerIndex) => {
+        const position = { lat: item.lat, lng: item.lng };
+        bounds.extend(position);
+
+        const marker = new maps.Marker({
+          map,
+          position,
+          label: {
+            text: `${markerIndex + 1}`,
+            color: "#ffffff",
+            fontSize: "11px",
+            fontWeight: "700"
+          },
+          icon: {
+            path: maps.SymbolPath.CIRCLE,
+            scale: 10,
+            fillColor: "#ef4444",
+            fillOpacity: 1,
+            strokeColor: "#ffffff",
+            strokeWeight: 2
+          },
+          title: item.name,
+          animation: markerIndex === 0 ? maps.Animation.DROP : undefined
+        });
+
+        marker.addListener("click", () => {
+          infoWindow.setContent(
+            `<div style="color:#111827;font-family:Segoe UI,Arial,sans-serif;line-height:1.4;">
+               <strong>${item.name}</strong><br/>${item.formattedAddress || ""}
+             </div>`
+          );
+          infoWindow.open({ anchor: marker, map });
+        });
+
+        markersRef.current.push(marker);
       });
 
-      const selectedMarker = markersRef.current.find(
-        (marker, markerIndex) => valid[markerIndex]?.index === focusTarget.index
-      );
+      const selected = valid.find((item) => item.index === selectedIndex);
+      const focusTarget = selected || valid[0];
 
-      if (selectedMarker) {
-        infoWindow.setContent(
-          `<div style="color:#111827;font-family:Segoe UI,Arial,sans-serif;line-height:1.4;">
-             <strong>${focusTarget.name}</strong><br/>${focusTarget.formattedAddress || ""}
-           </div>`
-        );
-        infoWindow.open({ anchor: selectedMarker, map });
+      if (focusTarget) {
+        map.setCenter({ lat: focusTarget.lat, lng: focusTarget.lng });
+        map.setZoom(valid.length === 1 ? 15 : 13);
+        maps.event.trigger(map, "resize");
+        map.panTo({ lat: focusTarget.lat, lng: focusTarget.lng });
+      } else if (valid.length === 1) {
+        map.setCenter({ lat: valid[0].lat, lng: valid[0].lng });
+        map.setZoom(15);
+      } else {
+        map.fitBounds(bounds, 40);
       }
+
+      if (focusTarget) {
+        selectedCircleRef.current = new maps.Circle({
+          map,
+          center: { lat: focusTarget.lat, lng: focusTarget.lng },
+          radius: 150,
+          strokeColor: "#1d4ed8",
+          strokeOpacity: 0.9,
+          strokeWeight: 2,
+          fillColor: "#60a5fa",
+          fillOpacity: 0.2
+        });
+
+        const selectedMarker = markersRef.current.find(
+          (marker, markerIndex) => valid[markerIndex]?.index === focusTarget.index
+        );
+
+        if (selectedMarker) {
+          infoWindow.setContent(
+            `<div style="color:#111827;font-family:Segoe UI,Arial,sans-serif;line-height:1.4;">
+               <strong>${focusTarget.name}</strong><br/>${focusTarget.formattedAddress || ""}
+             </div>`
+          );
+          infoWindow.open({ anchor: selectedMarker, map });
+        }
+      }
+
+      if (mapError) {
+        setMapError("");
+      }
+    };
+
+    const withCoordinates = base.filter(
+      (item) => Number.isFinite(item.lat) && Number.isFinite(item.lng)
+    );
+
+    if (withCoordinates.length > 0) {
+      renderMarkers(withCoordinates);
+      return () => {
+        cancelled = true;
+      };
     }
-  }, [places, selectedIndex]);
+
+    const geocoder = new maps.Geocoder();
+    Promise.all(
+      base.map(
+        (item) =>
+          new Promise((resolve) => {
+            const address = String(item.formattedAddress || item.name || "").trim();
+            if (!address) return resolve(item);
+            geocoder.geocode({ address }, (results, status) => {
+              if (status === "OK" && results?.[0]?.geometry?.location) {
+                const location = results[0].geometry.location;
+                resolve({
+                  ...item,
+                  lat: Number(location.lat()),
+                  lng: Number(location.lng())
+                });
+                return;
+              }
+              resolve(item);
+            });
+          })
+      )
+    )
+      .then((resolved) => {
+        if (cancelled) return;
+        const valid = resolved.filter(
+          (item) => Number.isFinite(item.lat) && Number.isFinite(item.lng)
+        );
+        if (!valid.length) {
+          setMapError("No valid coordinates available for this recommendation.");
+          return;
+        }
+        renderMarkers(valid);
+      })
+      .catch(() => {
+        if (!cancelled) setMapError("Failed to resolve map coordinates.");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mapReady, places, selectedIndex]);
 
   if (!GOOGLE_MAPS_KEY) {
     return (

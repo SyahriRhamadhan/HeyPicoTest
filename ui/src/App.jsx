@@ -380,8 +380,7 @@ function App() {
     setIsRecommendationOpen(true);
   };
 
-  const shouldShowRecommendations =
-    isRecommendationOpen || (!isMobile && (activeChat?.places || []).length > 0);
+  const shouldShowRecommendations = isRecommendationOpen;
 
   const handleNewChat = () => {
     const createRemoteChat = async () => {
