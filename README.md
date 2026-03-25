@@ -1,72 +1,102 @@
-# HeyPico Test - Local LLM + Google Maps API
+# HeyPico Code Test 2
 
-This project is a minimal backend for Code Test 2:
+Local LLM + Maps assistant with:
+- Node.js/Express backend
+- Ollama (local model)
+- Google Maps (primary) + OpenStreetMap fallback
+- React Native Web UI (Vite)
+- SQLite chat memory using Prisma
 
-- Runs with local LLM (Ollama)
-- Extracts location intent from user prompt
-- Queries Google Maps Places API (primary)
-- Supports OpenStreetMap fallback (secondary)
-- Returns place data with Google Maps link and embeddable map URL
+## Features
+- Chat mode and map mode in one `/api/assistant` endpoint.
+- Entity-to-map behavior (example: `show singapore on map`).
+- Browser location support (`Use Location`).
+- Model selector from local Ollama models.
+- Persistent chat sessions and messages in SQLite.
+- Memory settings: clear current chat or clear all chat memory.
 
-## Tech Stack
-
-- Node.js + Express
-- Ollama (local LLM)
-- Google Maps Places API
-- OpenStreetMap (Nominatim)
-- Zod (input validation)
-- express-rate-limit (usage limits)
+## Project Structure
+```txt
+.
+├─ src/                    # backend source
+├─ prisma/                 # Prisma schema, sqlite db, seed script
+│  ├─ schema.prisma
+│  └─ seed.js
+├─ ui/                     # React Native Web frontend (Vite)
+├─ .env.example
+└─ package.json
+```
 
 ## Prerequisites
-
 - Node.js 18+
-- Ollama running locally
-- Google Maps API key
+- Ollama running locally (`http://localhost:11434`)
+- Google Maps API key (recommended for accurate results)
 
-## Setup
-
-1. Install dependencies:
-
+## Environment Setup
+1. Install backend dependencies:
 ```bash
 npm install
 ```
 
-2. Copy environment file:
-
+2. Create `.env` from example:
 ```bash
 copy .env.example .env
 ```
 
-3. Update `.env` with your own `GOOGLE_MAPS_API_KEY`.
-   You can set `DEFAULT_LOCATION` to handle prompts without explicit location.
-
-Map provider modes:
-
-- `MAP_PROVIDER=google` -> Google only
-- `MAP_PROVIDER=osm` -> OpenStreetMap only
-- `MAP_PROVIDER=auto` -> Try Google first, fallback to OpenStreetMap
-
-4. Start server:
-
-```bash
-npm run start
+3. Update `.env` values as needed:
+```env
+PORT=3001
+DATABASE_URL="file:./prisma/dev.db"
+DEFAULT_LOCATION=Batam
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=qwen2.5-coder:7b
+MAP_PROVIDER=auto
+GOOGLE_MAPS_API_KEY=your_key_here
+OSM_USER_AGENT=heypico-test-map-app/1.0
+RATE_LIMIT_WINDOW_MS=60000
+RATE_LIMIT_MAX_REQUESTS=30
+MAX_RECOMMENDATIONS=4
 ```
 
-Server runs on `http://localhost:3001` by default.
-Web UI is available at `http://localhost:3001`.
+## Database (SQLite + Prisma)
+Generate Prisma client:
+```bash
+npm run prisma:generate
+```
 
-## React UI (Component-based)
+Optional migration command:
+```bash
+npm run prisma:migrate
+```
 
-A React version of the UI is available in `ui/`.
+Seed dummy English chats/messages:
+```bash
+npm run db:seed
+```
 
-Run backend first:
+Notes:
+- Seeder file: `prisma/seed.js`
+- Seeder resets existing chat data (deletes old chats/messages first).
 
+## Run Backend
+Development mode:
 ```bash
 npm run dev
 ```
 
-Then run React UI:
+Production mode:
+```bash
+npm run start
+```
 
+Backend URL:
+- `http://localhost:3001`
+
+Health check:
+- `GET /health`
+
+## Run Frontend (React Native Web)
+In a second terminal:
 ```bash
 cd ui
 npm install
@@ -74,109 +104,64 @@ copy .env.example .env
 npm run dev
 ```
 
-Open `http://localhost:5173` (Vite proxy already forwards `/api` to backend `:3001`).
+Frontend URL:
+- `http://localhost:5173`
 
-## API
+Vite proxy forwards `/api/*` requests to backend `:3001`.
 
-### Health Check
+## Main API Endpoints
+- `POST /api/assistant`
+- `POST /api/map-query`
+- `GET /api/models`
+- `GET /api/chats`
+- `POST /api/chats`
+- `GET /api/chats/:chatId/messages`
+- `POST /api/memory/clear`
 
-`GET /health`
-
-### Map Query
-
-`POST /api/map-query`
-
-Request body:
-
+### Assistant request example
 ```json
 {
-  "prompt": "find coffee shops in Batam"
+  "chatId": "demo-chat-map-assistant",
+  "prompt": "find coffee shops in Batam",
+  "model": "qwen2.5-coder:7b"
 }
 ```
 
-### Assistant (Auto mode: Chat or Map)
-
-`POST /api/assistant`
-
-Request:
-
-```json
-{
-  "prompt": "explain what REST API is"
-}
-```
-
-Possible response (chat mode):
-
-```json
-{
-  "mode": "chat",
-  "prompt": "explain what REST API is",
-  "answer": "..."
-}
-```
-
-Possible response (map mode):
-
+### Assistant map response example
 ```json
 {
   "mode": "map",
-  "prompt": "find coffee shops in Batam",
-  "intent": { "query": "coffee shops", "location": "Batam", "placeType": "cafe" },
-  "provider": "openstreetmap",
-  "totalResults": 5,
+  "provider": "google",
+  "totalResults": 4,
+  "assistantMessage": "Hello! I found 4 recommendations...",
   "places": []
 }
 ```
 
-Response (example):
+## Seed Data Included
+The seeder creates 3 demo chat sessions in English:
+- `Find coffee in Batam`
+- `REST API basics`
+- `Current location + map`
 
-```json
-{
-  "prompt": "find coffee shops in Batam",
-  "intent": {
-    "query": "coffee shops",
-    "location": "Batam",
-    "placeType": "cafe"
-  },
-  "provider": "google",
-  "requestQuery": "coffee shops in Batam",
-  "totalResults": 5,
-  "places": [
-    {
-      "name": "Example Cafe",
-      "formattedAddress": "Batam, Indonesia",
-      "rating": 4.4,
-      "location": { "lat": 1.1, "lng": 104.0 },
-      "mapsUrl": "https://www.google.com/maps/search/?api=1&query=...",
-      "embedUrl": "https://www.google.com/maps?q=...&output=embed"
-    }
-  ]
-}
+## Troubleshooting
+- `ECONNREFUSED` in Vite proxy:
+  - Ensure backend is running on `http://localhost:3001`.
+- Map not visible in UI:
+  - Ensure `GOOGLE_MAPS_API_KEY` is valid.
+  - Restart backend after changing `.env`.
+- Local model not listed:
+  - Check Ollama is running and model exists (`ollama list`).
+- Empty API responses:
+  - Try explicit location in prompt, example: `find coffee shops in Batam`.
+
+## Useful Commands
+```bash
+npm run dev
+npm run start
+npm run prisma:generate
+npm run prisma:migrate
+npm run prisma:deploy
+npm run db:seed
 ```
 
-If user context is too generic (for example: `find coffee` without area), API may return:
-
-```json
-{
-  "needsClarification": true,
-  "clarificationQuestion": "Please specify the city or area first..."
-}
-```
-
-## Security / Best Practices Included
-
-- API keys are loaded from environment variables
-- Rate limit applied for `/api/*` routes
-- Input validation using Zod
-- Request timeout for external API calls
-- Basic error handling with safe response format
-- Fallback provider strategy for resiliency
-
-## Notes
-
-- This project uses Google Places Text Search endpoint as the primary provider.
-- OpenStreetMap is available as secondary fallback when `MAP_PROVIDER=auto`.
-- For production use, restrict your API key by:
-  - API restrictions (allow only required Google APIs)
-  - App/IP restrictions

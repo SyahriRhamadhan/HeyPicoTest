@@ -17,8 +17,15 @@ function ChatPanel({
   isSidebarOpen,
   onToggleSidebar,
   isRecommendationOpen,
-  onToggleRecommendations
+  onToggleRecommendations,
+  onEditLastUserMessage
 }) {
+  const lastUserMessageIndex = [...messages]
+    .map((message, index) => ({ role: message.role, index }))
+    .filter((message) => message.role === "user")
+    .map((message) => message.index)
+    .pop();
+
   return (
     <View style={styles.chatPanel}>
       <View style={styles.panelHeader}>
@@ -52,6 +59,8 @@ function ChatPanel({
             role={message.role}
             text={message.text}
             meta={message.meta}
+            canEdit={message.role === "user" && index === lastUserMessageIndex}
+            onEdit={onEditLastUserMessage}
           />
         ))}
       </ScrollView>

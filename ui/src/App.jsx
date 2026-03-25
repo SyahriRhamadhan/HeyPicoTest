@@ -43,6 +43,30 @@ const pickHighestModel = (models) => {
   return [...models].sort((a, b) => modelRank(b) - modelRank(a))[0];
 };
 
+const normalizeMessageMeta = (meta) => {
+  if (!meta) return undefined;
+  if (typeof meta === "string") return meta;
+  if (typeof meta === "number" || typeof meta === "boolean") return String(meta);
+
+  if (typeof meta === "object") {
+    const parts = [];
+
+    if (meta.provider) {
+      parts.push(`provider=${meta.provider}`);
+    }
+
+    if (meta.results !== undefined) {
+      parts.push(`results=${meta.results}`);
+    }
+
+    if (parts.length > 0) {
+      return parts.join(", ");
+    }
+  }
+
+  return undefined;
+};
+
 function App() {
   const [chatSessions, setChatSessions] = useState([]);
   const [activeChatId, setActiveChatId] = useState("");
@@ -124,7 +148,7 @@ function App() {
       const messages = (data?.messages || []).map((message) => ({
         role: message.role,
         text: message.text,
-        meta: message.meta
+        meta: normalizeMessageMeta(message.meta)
       }));
       setChatSessions((current) =>
         current.map((session) =>
@@ -278,6 +302,11 @@ function App() {
     }
   };
 
+  const handleEditLastUserMessage = (text) => {
+    setPrompt(String(text || ""));
+    setInputHint("");
+  };
+
   const shouldShowRecommendations = isRecommendationOpen || (activeChat?.places || []).length > 0;
 
   const handleNewChat = () => {
@@ -379,6 +408,7 @@ function App() {
         onToggleSidebar={() => setIsSidebarOpen((current) => !current)}
         isRecommendationOpen={shouldShowRecommendations}
         onToggleRecommendations={() => setIsRecommendationOpen((current) => !current)}
+        onEditLastUserMessage={handleEditLastUserMessage}
       />
       {shouldShowRecommendations ? (
         <MapPanel

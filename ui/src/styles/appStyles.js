@@ -233,7 +233,7 @@ export const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginTop: 4
+    marginTop: 6
   },
   messageActionsUser: {
     justifyContent: "flex-end"
@@ -242,12 +242,14 @@ export const styles = StyleSheet.create({
     justifyContent: "flex-start"
   },
   messageActionButton: {
-    width: 24,
-    height: 24,
+    width: 28,
+    height: 28,
     borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#3a3a3a",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "transparent"
+    backgroundColor: "#242424"
   },
   inputBar: {
     borderTopWidth: 1,
