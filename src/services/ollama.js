@@ -16,24 +16,29 @@ const assistantActionSchema = z.object({
   mapEntity: z.string().nullable().optional()
 });
 
+const followupDecisionSchema = z.object({
+  usePreviousMapContext: z.boolean().optional()
+});
+
+const clarificationDecisionSchema = z.object({
+  needsClarification: z.boolean().optional(),
+  clarificationQuestion: z.string().nullable().optional()
+});
+
+const summaryTopicSchema = z.object({
+  query: z.string().nullable().optional()
+});
+
+const memoryCommandSchema = z.object({
+  isMemoryRequest: z.boolean().optional(),
+  includePreviousChats: z.boolean().optional()
+});
+
+const mapEntityValiditySchema = z.object({
+  isMeaningful: z.boolean().optional()
+});
+
 const normalizeText = (value) => (typeof value === "string" ? value.trim() : "");
-
-const extractLocationFromPrompt = (prompt) => {
-  const normalizedPrompt = prompt.trim();
-  const patterns = [
-    /\b(?:in)\s+([a-zA-Z\s]+)$/i,
-    /\b(?:di)\s+([a-zA-Z\s]+)$/i
-  ];
-
-  for (const pattern of patterns) {
-    const match = normalizedPrompt.match(pattern);
-    if (match?.[1]) {
-      return match[1].trim();
-    }
-  }
-
-  return "";
-};
 
 const extractJsonObject = (rawText) => {
   const start = rawText.indexOf("{");
@@ -71,11 +76,10 @@ export const extractIntent = async (prompt, model) => {
   const jsonString = extractJsonObject(data.response);
   const parsed = JSON.parse(jsonString);
   const intent = intentSchema.parse(parsed);
-  const locationFromPrompt = extractLocationFromPrompt(prompt);
 
   return {
     query: normalizeText(intent.query) || prompt,
-    location: normalizeText(intent.location) || locationFromPrompt || config.defaultLocation,
+    location: normalizeText(intent.location),
     placeType: normalizeText(intent.placeType) || "place"
   };
 };
@@ -208,18 +212,226 @@ Return JSON only: {"mode":"entity"|"nearby"}
   return parsed?.mode === "entity" ? "entity" : "nearby";
 };
 
-export const askGeneralQuestionWithModel = async (prompt, model) => {
-  const systemPrompt =
-    "You are a concise helpful assistant. Reply clearly and directly. If needed, use short bullet points.";
+export const shouldUsePreviousMapContext = async ({ prompt, previousQuery, summary, model }) => {
+  const systemPrompt = `Decide whether a user prompt is a follow-up that should reuse previous map search context.
+Return JSON only: {"usePreviousMapContext": true|false}
+Rules:
+- true: prompt is vague/elliptical continuation (e.g. "coba carikan", "yang dekat pantai", "yang rating tinggi", "di batam").
+- false: prompt introduces a clear new topic/entity/category.
+- Prefer true when prompt lacks explicit category and previous context exists.
+Previous query: "${previousQuery || ""}"
+Summary: "${summary || ""}"`;
 
   const { data } = await axios.post(
     `${config.ollamaBaseUrl}/api/generate`,
     {
       model: resolveModel(model),
-      prompt: `${systemPrompt}\nUser: ${prompt}`,
+      prompt: `${systemPrompt}\nPrompt: "${prompt}"`,
+      stream: false,
+      options: {
+        temperature: 0
+      }
+    },
+    {
+      timeout: 30_000
+    }
+  );
+
+  const parsed = followupDecisionSchema.parse(JSON.parse(extractJsonObject(data.response)));
+  return Boolean(parsed.usePreviousMapContext);
+};
+
+export const shouldClarifyMapSearch = async ({
+  prompt,
+  query,
+  location,
+  hasBrowserLocation,
+  model
+}) => {
+  const systemPrompt = `You decide if a map-search request needs clarification.
+Return JSON only with:
+- needsClarification: true|false
+- clarificationQuestion: string|null
+
+Policy:
+- needsClarification=true only when user intent is too ambiguous to run a useful map search.
+- If user already provides enough context OR browser location is available, set false.
+- If true, provide one short question asking city/area/category clearly.`;
+
+  const { data } = await axios.post(
+    `${config.ollamaBaseUrl}/api/generate`,
+    {
+      model: resolveModel(model),
+      prompt: `${systemPrompt}
+Prompt: "${prompt}"
+Query: "${query || ""}"
+Location: "${location || ""}"
+HasBrowserLocation: ${hasBrowserLocation ? "true" : "false"}`,
+      stream: false,
+      options: {
+        temperature: 0
+      }
+    },
+    {
+      timeout: 30_000
+    }
+  );
+
+  const parsed = clarificationDecisionSchema.parse(JSON.parse(extractJsonObject(data.response)));
+  return {
+    needsClarification: Boolean(parsed.needsClarification),
+    clarificationQuestion: normalizeText(parsed.clarificationQuestion) || null
+  };
+};
+
+export const extractQueryFromSummary = async ({ summary, model }) => {
+  const cleanedSummary = normalizeText(summary);
+  if (!cleanedSummary) return "";
+
+  const systemPrompt = `Extract the best map-search topic/category from summary text.
+Return JSON only: {"query":"<string or empty>"}
+Examples: "cafe", "pharmacy", "restaurant near beach".`;
+
+  const { data } = await axios.post(
+    `${config.ollamaBaseUrl}/api/generate`,
+    {
+      model: resolveModel(model),
+      prompt: `${systemPrompt}\nSummary: "${cleanedSummary}"`,
+      stream: false,
+      options: {
+        temperature: 0
+      }
+    },
+    {
+      timeout: 30_000
+    }
+  );
+
+  const parsed = summaryTopicSchema.parse(JSON.parse(extractJsonObject(data.response)));
+  return normalizeText(parsed.query);
+};
+
+export const detectMemoryCommand = async ({ prompt, model }) => {
+  const systemPrompt = `Detect whether user asks to review chat memory/history.
+Return JSON only:
+{"isMemoryRequest":true|false,"includePreviousChats":true|false}
+Rules:
+- includePreviousChats=true only if user explicitly asks previous/older chats.`;
+
+  const { data } = await axios.post(
+    `${config.ollamaBaseUrl}/api/generate`,
+    {
+      model: resolveModel(model),
+      prompt: `${systemPrompt}\nPrompt: "${prompt}"`,
+      stream: false,
+      options: {
+        temperature: 0
+      }
+    },
+    {
+      timeout: 30_000
+    }
+  );
+
+  const parsed = memoryCommandSchema.parse(JSON.parse(extractJsonObject(data.response)));
+  return {
+    isMemoryRequest: Boolean(parsed.isMemoryRequest),
+    includePreviousChats: Boolean(parsed.includePreviousChats)
+  };
+};
+
+export const isMeaningfulMapEntity = async ({ entity, prompt, model }) => {
+  const systemPrompt = `Decide if entity text is a meaningful map target.
+Return JSON only: {"isMeaningful": true|false}
+Meaningful examples: "Batam", "Singapore", "Eiffel Tower", "hospital near Batam center"
+Not meaningful examples: "map", "on map", "show on map", "di map", empty text.`;
+
+  const { data } = await axios.post(
+    `${config.ollamaBaseUrl}/api/generate`,
+    {
+      model: resolveModel(model),
+      prompt: `${systemPrompt}\nPrompt: "${prompt || ""}"\nEntity: "${entity || ""}"`,
+      stream: false,
+      options: {
+        temperature: 0
+      }
+    },
+    {
+      timeout: 30_000
+    }
+  );
+
+  const parsed = mapEntityValiditySchema.parse(JSON.parse(extractJsonObject(data.response)));
+  return Boolean(parsed.isMeaningful);
+};
+
+const formatMemoryForPrompt = (memoryMessages) => {
+  if (!Array.isArray(memoryMessages) || memoryMessages.length === 0) {
+    return "";
+  }
+
+  return memoryMessages
+    .map((message) => {
+      const role = message?.role === "assistant" ? "assistant" : "user";
+      const text = String(message?.content || "").trim();
+      return text ? `${role}: ${text}` : "";
+    })
+    .filter(Boolean)
+    .join("\n");
+};
+
+export const askGeneralQuestionWithModel = async (prompt, model, memoryMessages = []) => {
+  const systemPrompt =
+    "You are a concise helpful assistant. Use conversation memory when relevant. Reply clearly and directly.";
+  const memoryBlock = formatMemoryForPrompt(memoryMessages);
+  const composedPrompt = memoryBlock
+    ? `${systemPrompt}\nConversation memory:\n${memoryBlock}\nUser: ${prompt}`
+    : `${systemPrompt}\nUser: ${prompt}`;
+
+  const { data } = await axios.post(
+    `${config.ollamaBaseUrl}/api/generate`,
+    {
+      model: resolveModel(model),
+      prompt: composedPrompt,
       stream: false,
       options: {
         temperature: 0.4
+      }
+    },
+    {
+      timeout: 30_000
+    }
+  );
+
+  return String(data?.response || "").trim();
+};
+
+export const summarizeConversation = async ({ previousSummary = "", messages = [], model }) => {
+  const summarySeed = normalizeText(previousSummary);
+  const messageBlock = formatMemoryForPrompt(messages);
+  const systemPrompt = `You summarize chat memory for a software assistant.
+Return plain text only (no markdown) with max 6 short lines:
+- context:
+- preferences:
+- last_result:
+- open_questions:
+Keep it factual and concise.`;
+
+  const prompt = `${systemPrompt}
+Previous summary:
+${summarySeed || "(none)"}
+
+Recent messages:
+${messageBlock || "(none)"}`;
+
+  const { data } = await axios.post(
+    `${config.ollamaBaseUrl}/api/generate`,
+    {
+      model: resolveModel(model),
+      prompt,
+      stream: false,
+      options: {
+        temperature: 0.1
       }
     },
     {

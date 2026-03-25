@@ -1,6 +1,6 @@
 import { config } from "../config.js";
-import { searchEntityOnGoogleMap, searchPlaces as searchPlacesGoogle } from "./googleMaps.js";
-import { searchEntityOnOsm, searchPlacesOsm } from "./openStreetMap.js";
+import { reverseGeocodeGoogle, searchEntityOnGoogleMap, searchPlaces as searchPlacesGoogle } from "./googleMaps.js";
+import { reverseGeocodeOsm, searchEntityOnOsm, searchPlacesOsm } from "./openStreetMap.js";
 
 const knownProviders = new Set(["auto", "google", "osm"]);
 
@@ -47,6 +47,29 @@ export const searchEntityOnMap = async ({ query }) => {
     return await searchEntityOnGoogleMap({ query });
   } catch (error) {
     const result = await searchEntityOnOsm({ query });
+    return {
+      ...result,
+      fallbackUsed: true,
+      fallbackReason: error?.message || "Google provider failed."
+    };
+  }
+};
+
+export const reverseGeocode = async ({ lat, lng }) => {
+  const mode = normalizeProvider();
+
+  if (mode === "google") {
+    return reverseGeocodeGoogle({ lat, lng });
+  }
+
+  if (mode === "osm") {
+    return reverseGeocodeOsm({ lat, lng });
+  }
+
+  try {
+    return await reverseGeocodeGoogle({ lat, lng });
+  } catch (error) {
+    const result = await reverseGeocodeOsm({ lat, lng });
     return {
       ...result,
       fallbackUsed: true,

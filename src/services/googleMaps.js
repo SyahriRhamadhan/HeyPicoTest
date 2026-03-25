@@ -114,3 +114,28 @@ export const searchEntityOnGoogleMap = async ({ query }) => {
     places
   };
 };
+
+export const reverseGeocodeGoogle = async ({ lat, lng }) => {
+  if (!config.googleMapsApiKey) {
+    throw new Error("GOOGLE_MAPS_API_KEY is not configured.");
+  }
+
+  const { data } = await axios.get("https://maps.googleapis.com/maps/api/geocode/json", {
+    params: {
+      latlng: `${lat},${lng}`,
+      key: config.googleMapsApiKey
+    },
+    timeout: 20_000
+  });
+
+  if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
+    throw new Error(`Google Geocode API error: ${data.status}`);
+  }
+
+  const first = (data.results ?? [])[0];
+  return {
+    provider: "google",
+    address: first?.formatted_address || "",
+    placeId: first?.place_id || null
+  };
+};

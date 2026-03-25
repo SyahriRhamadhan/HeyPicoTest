@@ -18,6 +18,7 @@ model ChatSession {
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
   messages  ChatMessage[]
+  summary   ChatSummary?
 }
 
 model ChatMessage {
@@ -30,4 +31,13 @@ model ChatMessage {
   chat      ChatSession @relation(fields: [chatId], references: [id], onDelete: Cascade)
 
   @@index([chatId, createdAt])
+}
+
+model ChatSummary {
+  id                 String      @id @default(cuid())
+  chatId             String      @unique
+  summary            String
+  sourceMessageCount Int         @default(0)
+  updatedAt          DateTime    @updatedAt
+  chat               ChatSession @relation(fields: [chatId], references: [id], onDelete: Cascade)
 }

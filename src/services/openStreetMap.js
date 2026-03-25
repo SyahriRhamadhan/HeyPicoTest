@@ -243,3 +243,22 @@ export const searchEntityOnOsm = async ({ query }) => {
     places
   };
 };
+
+export const reverseGeocodeOsm = async ({ lat, lng }) => {
+  const { data } = await axios.get("https://nominatim.openstreetmap.org/reverse", {
+    params: {
+      lat,
+      lon: lng,
+      format: "jsonv2"
+    },
+    headers: {
+      "User-Agent": config.osmUserAgent
+    },
+    timeout: 20_000
+  });
+
+  return {
+    provider: "openstreetmap",
+    address: data?.display_name || ""
+  };
+};

@@ -1,23 +1,26 @@
 import { ZodError } from "zod";
-import { searchEntityOnMap, searchPlaces } from "../services/mapProvider.js";
+import { reverseGeocode, searchEntityOnMap, searchPlaces } from "../services/mapProvider.js";
 import {
   askGeneralQuestionWithModel,
   classifyMapQueryMode,
+  detectMemoryCommand,
   extractIntent,
   extractMapEntity,
   extractMapEntityFromPrompt,
+  extractQueryFromSummary,
+  isMeaningfulMapEntity,
   isCurrentLocationIntent,
   listLocalModels,
-  planAssistantAction
+  planAssistantAction,
+  shouldClarifyMapSearch,
+  shouldUsePreviousMapContext,
+  summarizeConversation
 } from "../services/ollama.js";
 import { promptSchema } from "../schemas/promptSchema.js";
 import { logger } from "../utils/logger.js";
 import {
   buildMapAssistantMessage,
-  hasExplicitLocationInPrompt,
-  isMapIntentPrompt,
   limitRecommendations,
-  needsClarification,
   resolveLocationForSearch,
   sortPlacesByBrowserLocation,
   toEmbedUrlFromLatLng,
@@ -30,27 +33,144 @@ import {
   createChatSession,
   ensureChatSession,
   getChatMessages,
-  listChatSessions
+  getChatMessageCount,
+  getChatSummary,
+  getRecentMessagesAcrossChats,
+  getRecentChatMessages,
+  listChatSessions,
+  upsertChatSummary
 } from "../services/chatStore.js";
 
-const fallbackPlannerAction = (prompt) => ({
-  action: isMapIntentPrompt(prompt) ? "map_search" : "chat",
+const SUMMARY_MESSAGE_INTERVAL = 6;
+
+const fallbackPlannerAction = () => ({
+  action: "chat",
   query: "",
   location: "",
   placeType: "place",
   mapEntity: ""
 });
 
-const isGenericMapFollowUp = (prompt) => {
-  const text = String(prompt || "").toLowerCase().trim();
-  const tokenCount = text.split(/\s+/).filter(Boolean).length;
-  return tokenCount <= 4 && /(map|peta)/.test(text);
+const parseMessageMeta = (meta) => {
+  if (!meta) return null;
+  if (typeof meta === "object") return meta;
+  if (typeof meta !== "string") return null;
+  try {
+    return JSON.parse(meta);
+  } catch {
+    return null;
+  }
 };
 
-const isWeakMapEntity = (entity) => {
-  const text = String(entity || "").toLowerCase().trim();
-  if (!text) return true;
-  return /^(map|peta|di map|on map|kalau di map|show on map|tunjukan di map)$/.test(text);
+const getLastMapContext = (messages = []) => {
+  for (const message of messages) {
+    if (message.role !== "assistant") continue;
+    const meta = parseMessageMeta(message.meta);
+    if (!meta || meta.type !== "map_result") continue;
+    return {
+      query: String(meta.requestQuery || "").trim(),
+      location: String(meta.location || "").trim(),
+      placeType: String(meta.placeType || "").trim()
+    };
+  }
+  return null;
+};
+
+
+const buildMemoryAssistantMessage = (messages) => {
+  if (!Array.isArray(messages) || messages.length === 0) return "No memory found in this chat yet.";
+  const lastUser = [...messages].reverse().find((message) => message.role === "user");
+  if (!lastUser?.content) return "No readable memory found in this chat yet.";
+  return `Last user request: ${String(lastUser.content).trim()}`;
+};
+
+const buildCrossChatMemoryAssistantMessage = (messages) => {
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return "No previous-chat memory found.";
+  }
+
+  const lines = messages
+    .slice(-8)
+    .map((message, index) => {
+      const role = message.role === "assistant" ? "Assistant" : "You";
+      const chatTitle = message?.chat?.title || "Untitled chat";
+      return `${index + 1}. [${chatTitle}] ${role}: ${String(message.content || "").trim()}`;
+    })
+    .filter((line) => line.length > 0);
+
+  if (lines.length === 0) {
+    return "No readable previous-chat memory found.";
+  }
+
+  return `Here is memory from previous chats:\n${lines.join("\n")}`;
+};
+
+const toModelMemory = (messages = [], { includeChatTitle = false } = {}) => {
+  return messages
+    .map((message) => {
+      const role = message.role === "assistant" ? "assistant" : "user";
+      const content = String(message.content || "").trim();
+      if (!content) return null;
+      if (includeChatTitle) {
+        const title = message?.chat?.title || "untitled";
+        return { role, content: `[chat:${title}] ${content}` };
+      }
+      return { role, content };
+    })
+    .filter(Boolean);
+};
+
+const truncateLine = (value, max = 140) => {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (text.length <= max) return text;
+  return `${text.slice(0, max - 3)}...`;
+};
+
+const buildSummaryFallback = (messages = []) => {
+  const recent = messages.slice(-10);
+  const lastUser = [...recent].reverse().find((message) => message.role === "user");
+  const lastAssistant = [...recent].reverse().find((message) => message.role === "assistant");
+  const context = lastUser ? truncateLine(lastUser.content) : "n/a";
+  const result = lastAssistant ? truncateLine(lastAssistant.content) : "n/a";
+  return `context: ${context}\npreferences: n/a\nlast_result: ${result}\nopen_questions: n/a`;
+};
+
+const shouldRefreshSummary = (totalMessageCount, currentSummary, force = false) => {
+  if (force) return true;
+  if (!currentSummary) return true;
+  const sourceCount = Number(currentSummary.sourceMessageCount || 0);
+  return totalMessageCount - sourceCount >= SUMMARY_MESSAGE_INTERVAL;
+};
+
+const refreshChatSummaryIfNeeded = async ({ chatId, model, force = false }) => {
+  const totalMessageCount = await getChatMessageCount(chatId);
+  if (totalMessageCount === 0) return null;
+
+  const currentSummary = await getChatSummary(chatId);
+  if (!shouldRefreshSummary(totalMessageCount, currentSummary, force)) {
+    return currentSummary;
+  }
+
+  const recentMessages = [...(await getRecentChatMessages(chatId, 14))].reverse();
+  let summaryText = "";
+
+  try {
+    summaryText = await summarizeConversation({
+      previousSummary: currentSummary?.summary || "",
+      messages: recentMessages,
+      model
+    });
+  } catch (error) {
+    logger.warn("Summary generation failed, using fallback summary", { message: error.message });
+    summaryText = "";
+  }
+
+  const safeSummary = truncateLine(summaryText, 1200) || buildSummaryFallback(recentMessages);
+  return upsertChatSummary({
+    chatId,
+    summary: safeSummary,
+    sourceMessageCount: totalMessageCount
+  });
 };
 
 const sendError = (res, error) => {
@@ -69,7 +189,25 @@ const sendError = (res, error) => {
   });
 };
 
-const sendAssistantResponse = async ({ res, payload, chatSessionId, userPrompt }) => {
+const buildAssistantMeta = (payload) => {
+  if (!payload || payload.mode !== "map") {
+    return null;
+  }
+
+  return {
+    type: "map_result",
+    mode: payload.mode,
+    provider: payload.provider || null,
+    requestQuery: payload.requestQuery || null,
+    location: payload?.intent?.location || null,
+    placeType: payload?.intent?.placeType || null,
+    totalResults: Number(payload.totalResults || 0),
+    places: Array.isArray(payload.places) ? payload.places : [],
+    selectedPlaceIndex: 0
+  };
+};
+
+const sendAssistantResponse = async ({ res, payload, chatSessionId, userPrompt, model }) => {
   if (chatSessionId) {
     await appendChatMessage({
       chatId: chatSessionId,
@@ -79,7 +217,13 @@ const sendAssistantResponse = async ({ res, payload, chatSessionId, userPrompt }
     await appendChatMessage({
       chatId: chatSessionId,
       role: "assistant",
-      content: payload.assistantMessage || payload.answer || ""
+      content: payload.assistantMessage || payload.answer || "",
+      meta: buildAssistantMeta(payload)
+    });
+
+    await refreshChatSummaryIfNeeded({
+      chatId: chatSessionId,
+      model
     });
   }
 
@@ -94,12 +238,21 @@ export const handleMapQuery = async (req, res) => {
     const { prompt, browserLocation, model } = promptSchema.parse(req.body);
     const intent = await extractIntent(prompt, model);
 
-    if (needsClarification({ prompt, query: intent.query, browserLocation })) {
+    const clarify = await shouldClarifyMapSearch({
+      prompt,
+      query: intent.query,
+      location: intent.location,
+      hasBrowserLocation: Boolean(browserLocation),
+      model
+    });
+
+    if (clarify.needsClarification) {
       return res.json({
         prompt,
         intent,
         needsClarification: true,
         clarificationQuestion:
+          clarify.clarificationQuestion ||
           "Please specify the city or area first. Example: 'find coffee shops in Batam' or 'find beach in Nongsa Batam'."
       });
     }
@@ -123,7 +276,7 @@ export const handleMapQuery = async (req, res) => {
   }
 };
 
-const buildCurrentLocationResponse = ({ prompt, browserLocation }) => {
+const buildCurrentLocationResponse = async ({ prompt, browserLocation }) => {
   if (!browserLocation) {
     return {
       mode: "chat",
@@ -133,16 +286,30 @@ const buildCurrentLocationResponse = ({ prompt, browserLocation }) => {
     };
   }
 
+  const { lat, lng } = browserLocation;
+  let address = "";
+  try {
+    const geocode = await reverseGeocode({ lat, lng });
+    address = String(geocode?.address || "").trim();
+  } catch {
+    address = "";
+  }
+
+  const locationText = address
+    ? `Your current location is around ${address} (lat ${lat}, lng ${lng}).`
+    : `Your current location is approximately lat ${lat}, lng ${lng}.`;
+
   return {
     mode: "chat",
     prompt,
-    assistantMessage: `Your current location is approximately lat ${browserLocation.lat}, lng ${browserLocation.lng}.`,
+    assistantMessage: locationText,
     location: browserLocation,
-    mapsUrl: toMapsSearchUrlFromLatLng(browserLocation.lat, browserLocation.lng)
+    address: address || null,
+    mapsUrl: toMapsSearchUrlFromLatLng(lat, lng)
   };
 };
 
-const buildCurrentLocationMapResponse = ({ prompt, browserLocation }) => {
+const buildCurrentLocationMapResponse = async ({ prompt, browserLocation }) => {
   if (!browserLocation) {
     return {
       mode: "map",
@@ -153,6 +320,13 @@ const buildCurrentLocationMapResponse = ({ prompt, browserLocation }) => {
   }
 
   const { lat, lng } = browserLocation;
+  let address = "";
+  try {
+    const geocode = await reverseGeocode({ lat, lng });
+    address = String(geocode?.address || "").trim();
+  } catch {
+    address = "";
+  }
   return {
     mode: "map",
     prompt,
@@ -162,7 +336,7 @@ const buildCurrentLocationMapResponse = ({ prompt, browserLocation }) => {
     places: [
       {
         name: "Your Current Location",
-        formattedAddress: `Lat ${lat}, Lng ${lng}`,
+        formattedAddress: address || `Lat ${lat}, Lng ${lng}`,
         rating: null,
         location: { lat, lng },
         mapsUrl: toMapsSearchUrlFromLatLng(lat, lng),
@@ -176,15 +350,60 @@ const buildCurrentLocationMapResponse = ({ prompt, browserLocation }) => {
 
 export const handleAssistant = async (req, res) => {
   try {
-    const { prompt, browserLocation, model, context, chatId } = promptSchema.parse(req.body);
+    const { prompt, browserLocation, model, chatId } = promptSchema.parse(req.body);
     const chatSession = await ensureChatSession(chatId);
+    const recentMessages = await getRecentChatMessages(chatSession.id, 12);
+    const currentSummary = await getChatSummary(chatSession.id);
+    const memoryDecision = await detectMemoryCommand({ prompt, model }).catch(() => ({
+      isMemoryRequest: false,
+      includePreviousChats: false
+    }));
+    const crossChatMessages = memoryDecision.includePreviousChats
+      ? await getRecentMessagesAcrossChats({ excludeChatId: chatSession.id, limit: 10 })
+      : [];
+    const llmMemory = [
+      ...(currentSummary?.summary
+        ? [{ role: "assistant", content: `[summary] ${currentSummary.summary}` }]
+        : []),
+      ...toModelMemory([...recentMessages].reverse()),
+      ...toModelMemory([...crossChatMessages].reverse(), { includeChatTitle: true })
+    ];
     const respond = (payload) =>
       sendAssistantResponse({
         res,
         payload,
         chatSessionId: chatSession.id,
-        userPrompt: prompt
+        userPrompt: prompt,
+        model
       });
+
+    if (memoryDecision.isMemoryRequest) {
+      const ensuredSummary = await refreshChatSummaryIfNeeded({
+        chatId: chatSession.id,
+        model,
+        force: !currentSummary
+      });
+      const chronological = [...recentMessages].reverse();
+      const crossChronological = [...crossChatMessages].reverse();
+      const baseMemoryText = buildMemoryAssistantMessage(chronological);
+      const summaryText = ensuredSummary?.summary
+        ? `Saved summary:\n${ensuredSummary.summary}`
+        : "Saved summary: (not generated yet)";
+      if (!memoryDecision.includePreviousChats) {
+        return respond({
+          mode: "chat",
+          prompt,
+          model: model || null,
+          assistantMessage: `${summaryText}\n\n${baseMemoryText}`
+        });
+      }
+      return respond({
+        mode: "chat",
+        prompt,
+        model: model || null,
+        assistantMessage: `${summaryText}\n\n${baseMemoryText}\n\n${buildCrossChatMemoryAssistantMessage(crossChronological)}`
+      });
+    }
     let plannedAction;
 
     try {
@@ -195,20 +414,31 @@ export const handleAssistant = async (req, res) => {
       });
     } catch {
       logger.warn("Planner failed, using fallback action");
-      plannedAction = fallbackPlannerAction(prompt);
+      plannedAction = fallbackPlannerAction();
     }
+    const intent = await extractIntent(prompt, model).catch(() => ({
+      query: prompt,
+      location: "",
+      placeType: "place"
+    }));
+    const lastMapContext = getLastMapContext(recentMessages);
 
     if (plannedAction.action === "current_location") {
-      return respond(buildCurrentLocationResponse({ prompt, browserLocation }));
-    }
+      const confirmedSelfLocation = await isCurrentLocationIntent({ prompt, model }).catch(() => false);
+      const inferredQuery = plannedAction.query || intent.query || lastMapContext?.query || prompt;
+      const inferredLocation = plannedAction.location || intent.location || lastMapContext?.location || "";
+      const inferredPlaceType = plannedAction.placeType || intent.placeType || lastMapContext?.placeType || "place";
 
-    if (isGenericMapFollowUp(prompt) && browserLocation && context?.lastUserPrompt) {
-      const wasSelfLocation = await isCurrentLocationIntent({
-        prompt: context.lastUserPrompt,
-        model
-      });
-      if (wasSelfLocation) {
-        return respond(buildCurrentLocationMapResponse({ prompt, browserLocation }));
+      if (!confirmedSelfLocation && inferredLocation) {
+        plannedAction = {
+          ...plannedAction,
+          action: "map_search",
+          query: inferredQuery,
+          location: inferredLocation,
+          placeType: inferredPlaceType
+        };
+      } else {
+        return respond(await buildCurrentLocationResponse({ prompt, browserLocation }));
       }
     }
 
@@ -224,12 +454,12 @@ export const handleAssistant = async (req, res) => {
           mapEntity: entity
         };
       } else {
-        return respond(buildCurrentLocationMapResponse({ prompt, browserLocation }));
+        return respond(await buildCurrentLocationMapResponse({ prompt, browserLocation }));
       }
     }
 
     if (plannedAction.action === "chat") {
-      const answer = await askGeneralQuestionWithModel(prompt, model);
+      const answer = await askGeneralQuestionWithModel(prompt, model, llmMemory);
       return respond({
         mode: "chat",
         prompt,
@@ -240,7 +470,7 @@ export const handleAssistant = async (req, res) => {
     }
 
     if (plannedAction.action === "answer_and_map") {
-      const answer = await askGeneralQuestionWithModel(prompt, model);
+      const answer = await askGeneralQuestionWithModel(prompt, model, llmMemory);
       const mapEntity =
         plannedAction.mapEntity ||
         (await extractMapEntity({
@@ -248,10 +478,13 @@ export const handleAssistant = async (req, res) => {
           answer,
           model
         }));
+      const meaningfulEntity = mapEntity
+        ? await isMeaningfulMapEntity({ entity: mapEntity, prompt, model }).catch(() => false)
+        : false;
 
-      if (!mapEntity || isWeakMapEntity(mapEntity)) {
+      if (!mapEntity || !meaningfulEntity) {
         if (browserLocation && (await isCurrentLocationIntent({ prompt, model }))) {
-          return respond(buildCurrentLocationMapResponse({ prompt, browserLocation }));
+          return respond(await buildCurrentLocationMapResponse({ prompt, browserLocation }));
         }
         return respond({
           mode: "chat",
@@ -276,11 +509,35 @@ export const handleAssistant = async (req, res) => {
       });
     }
 
-    const intent = await extractIntent(prompt, model);
-    const hasExplicitLocation = hasExplicitLocationInPrompt(prompt);
-    const mapQuery = plannedAction.query || intent.query || prompt;
-    const mapPlaceType = plannedAction.placeType || intent.placeType;
-    const mapLocation = plannedAction.location || (hasExplicitLocation ? intent.location : "") || "";
+    let mapQuery = plannedAction.query || intent.query || prompt;
+    let mapPlaceType = plannedAction.placeType || intent.placeType;
+    let mapLocation = plannedAction.location || intent.location || "";
+
+    let usePreviousContext = false;
+    try {
+      usePreviousContext = await shouldUsePreviousMapContext({
+        prompt,
+        previousQuery: lastMapContext?.query || "",
+        summary: currentSummary?.summary || "",
+        model
+      });
+    } catch {
+      usePreviousContext = false;
+    }
+
+    if (usePreviousContext) {
+      if (lastMapContext?.query) mapQuery = lastMapContext.query;
+      else {
+        const topicFromSummary = await extractQueryFromSummary({
+          summary: currentSummary?.summary || "",
+          model
+        });
+        if (topicFromSummary) mapQuery = topicFromSummary;
+      }
+      if (!mapLocation && lastMapContext?.location) mapLocation = lastMapContext.location;
+      if (!mapPlaceType && lastMapContext?.placeType) mapPlaceType = lastMapContext.placeType;
+    }
+
     const mapQueryMode = await classifyMapQueryMode({ prompt, query: mapQuery, model });
 
     if (mapQueryMode === "entity") {
@@ -299,28 +556,25 @@ export const handleAssistant = async (req, res) => {
       });
     }
 
-    if (!browserLocation && !mapLocation) {
-      return respond({
-        mode: "map",
-        prompt,
-        intent,
-        needsClarification: true,
-        clarificationQuestion:
-          "Please specify the city or area first. Example: 'find coffee shops in Batam' or 'find beach in Nongsa Batam'.",
-        assistantMessage:
-          "I need a little more context first. Which city or area should I search in?"
-      });
-    }
+    const clarify = await shouldClarifyMapSearch({
+      prompt,
+      query: mapQuery,
+      location: mapLocation,
+      hasBrowserLocation: Boolean(browserLocation),
+      model
+    });
 
-    if (needsClarification({ prompt, query: mapQuery, browserLocation })) {
+    if (clarify.needsClarification && !mapLocation && !browserLocation) {
       return respond({
         mode: "map",
         prompt,
         intent,
         needsClarification: true,
         clarificationQuestion:
+          clarify.clarificationQuestion ||
           "Please specify the city or area first. Example: 'find coffee shops in Batam' or 'find beach in Nongsa Batam'.",
         assistantMessage:
+          clarify.clarificationQuestion ||
           "I need a little more context first. Which city or area should I search in?"
       });
     }
@@ -339,7 +593,7 @@ export const handleAssistant = async (req, res) => {
     const limitedPlaces = limitRecommendations(rankedPlaces);
     const assistantMessage = buildMapAssistantMessage({
       totalResults: limitedPlaces.length,
-      location: browserLocation && !hasExplicitLocation ? "your current area" : resolvedLocation,
+      location: browserLocation && !mapLocation ? "your current area" : resolvedLocation,
       query: mapQuery,
       usedBrowserLocation: Boolean(browserLocation)
     });
@@ -413,7 +667,14 @@ export const handleChatMessages = async (req, res) => {
         id: message.id,
         role: message.role,
         text: message.content,
-        meta: message.meta ? JSON.parse(message.meta) : undefined,
+        meta: (() => {
+          if (!message.meta) return undefined;
+          try {
+            return JSON.parse(message.meta);
+          } catch {
+            return message.meta;
+          }
+        })(),
         createdAt: message.createdAt
       }))
     });

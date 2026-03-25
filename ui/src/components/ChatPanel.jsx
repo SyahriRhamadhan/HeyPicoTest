@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { FiMap, FiMenu, FiNavigation, FiSend, FiSidebar } from "react-icons/fi";
 import { styles } from "../styles/appStyles";
@@ -18,8 +19,18 @@ function ChatPanel({
   onToggleSidebar,
   isRecommendationOpen,
   onToggleRecommendations,
-  onEditLastUserMessage
+  onEditLastUserMessage,
+  onShowMapFromMessage
 }) {
+  const scrollRef = useRef(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      scrollRef.current?.scrollToEnd?.({ animated: true });
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [messages.length]);
+
   const lastUserMessageIndex = [...messages]
     .map((message, index) => ({ role: message.role, index }))
     .filter((message) => message.role === "user")
@@ -52,7 +63,12 @@ function ChatPanel({
         </View>
       </View>
 
-      <ScrollView style={styles.chatLog} contentContainerStyle={styles.chatContent}>
+      <ScrollView
+        ref={scrollRef}
+        style={styles.chatLog}
+        contentContainerStyle={styles.chatContent}
+        onContentSizeChange={() => scrollRef.current?.scrollToEnd?.({ animated: true })}
+      >
         {messages.map((message, index) => (
           <ChatBubble
             key={`${message.role}-${index}`}
@@ -61,6 +77,7 @@ function ChatPanel({
             meta={message.meta}
             canEdit={message.role === "user" && index === lastUserMessageIndex}
             onEdit={onEditLastUserMessage}
+            onShowInMap={onShowMapFromMessage}
           />
         ))}
       </ScrollView>

@@ -251,6 +251,21 @@ export const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#242424"
   },
+  messageMapActionButton: {
+    borderWidth: 1,
+    borderColor: "#3a3a3a",
+    backgroundColor: "#242424",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  messageMapActionText: {
+    color: "#cfd8e3",
+    fontSize: 12,
+    fontWeight: "600"
+  },
   inputBar: {
     borderTopWidth: 1,
     borderColor: "#2e2e2e",

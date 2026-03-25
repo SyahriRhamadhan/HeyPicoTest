@@ -33,10 +33,11 @@ const formatMeta = (meta) => {
   return "";
 };
 
-function ChatBubble({ role, text, meta, canEdit = false, onEdit }) {
+function ChatBubble({ role, text, meta, canEdit = false, onEdit, onShowInMap }) {
   const isUser = role === "user";
   const [copied, setCopied] = useState(false);
   const metaText = formatMeta(meta);
+  const canShowInMap = !isUser && meta && typeof meta === "object" && Array.isArray(meta.places) && meta.places.length > 0;
 
   const handleCopy = async () => {
     try {
@@ -56,6 +57,16 @@ function ChatBubble({ role, text, meta, canEdit = false, onEdit }) {
           {metaText ? <Text style={styles.bubbleMeta}>{metaText}</Text> : null}
         </View>
         <View style={[styles.messageActions, isUser ? styles.messageActionsUser : styles.messageActionsAssistant]}>
+          {canShowInMap ? (
+            <Pressable
+              style={styles.messageMapActionButton}
+              onPress={() => onShowInMap?.(meta)}
+              title="Show in map"
+              accessibilityLabel="Show in map"
+            >
+              <Text style={styles.messageMapActionText}>Show in map</Text>
+            </Pressable>
+          ) : null}
           <Pressable
             style={styles.messageActionButton}
             onPress={handleCopy}

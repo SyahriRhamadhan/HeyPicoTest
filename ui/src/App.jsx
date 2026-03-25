@@ -45,26 +45,36 @@ const pickHighestModel = (models) => {
 
 const normalizeMessageMeta = (meta) => {
   if (!meta) return undefined;
-  if (typeof meta === "string") return meta;
+  if (typeof meta === "string") {
+    try {
+      const parsed = JSON.parse(meta);
+      if (parsed && typeof parsed === "object") return parsed;
+    } catch {
+      return meta;
+    }
+    return meta;
+  }
   if (typeof meta === "number" || typeof meta === "boolean") return String(meta);
 
   if (typeof meta === "object") {
-    const parts = [];
-
-    if (meta.provider) {
-      parts.push(`provider=${meta.provider}`);
-    }
-
-    if (meta.results !== undefined) {
-      parts.push(`results=${meta.results}`);
-    }
-
-    if (parts.length > 0) {
-      return parts.join(", ");
-    }
+    return meta;
   }
 
   return undefined;
+};
+
+const extractLatestMapState = (messages = []) => {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const message = messages[i];
+    const meta = message?.meta;
+    if (!meta || typeof meta !== "object") continue;
+    if (meta.type !== "map_result") continue;
+    const places = Array.isArray(meta.places) ? meta.places : [];
+    if (places.length === 0) continue;
+    const selectedPlaceIndex = Number(meta.selectedPlaceIndex || 0);
+    return { places, selectedPlaceIndex };
+  }
+  return { places: [], selectedPlaceIndex: 0 };
 };
 
 function App() {
@@ -150,12 +160,15 @@ function App() {
         text: message.text,
         meta: normalizeMessageMeta(message.meta)
       }));
+      const restoredMapState = extractLatestMapState(messages);
       setChatSessions((current) =>
         current.map((session) =>
           session.id === chatId
             ? {
                 ...session,
                 messages: messages.length > 0 ? messages : [initialAssistant],
+                places: restoredMapState.places,
+                selectedPlaceIndex: restoredMapState.selectedPlaceIndex,
                 loaded: true
               }
             : session
@@ -256,7 +269,15 @@ function App() {
       addMessage({
         role: "assistant",
         text: data.assistantMessage || "Here are your recommendations.",
-        meta: `provider=${data.provider || "-"}, results=${data.totalResults || 0}`
+        meta: {
+          type: "map_result",
+          provider: data.provider || "-",
+          results: Number(data.totalResults || 0),
+          totalResults: Number(data.totalResults || 0),
+          requestQuery: data.requestQuery || null,
+          places: data.places || [],
+          selectedPlaceIndex: 0
+        }
       });
       setActivePlaces(data.places || [], 0);
       if ((data.places || []).length > 0) {
@@ -305,6 +326,15 @@ function App() {
   const handleEditLastUserMessage = (text) => {
     setPrompt(String(text || ""));
     setInputHint("");
+  };
+
+  const handleShowMapFromMessage = (meta) => {
+    if (!meta || typeof meta !== "object") return;
+    const places = Array.isArray(meta.places) ? meta.places : [];
+    if (places.length === 0) return;
+    const selectedIndex = Number(meta.selectedPlaceIndex || 0);
+    setActivePlaces(places, selectedIndex);
+    setIsRecommendationOpen(true);
   };
 
   const shouldShowRecommendations = isRecommendationOpen || (activeChat?.places || []).length > 0;
@@ -409,6 +439,7 @@ function App() {
         isRecommendationOpen={shouldShowRecommendations}
         onToggleRecommendations={() => setIsRecommendationOpen((current) => !current)}
         onEditLastUserMessage={handleEditLastUserMessage}
+        onShowMapFromMessage={handleShowMapFromMessage}
       />
       {shouldShowRecommendations ? (
         <MapPanel

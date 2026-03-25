@@ -1,48 +1,5 @@
 import { config } from "../config.js";
 
-export const isMapIntentPrompt = (prompt) => {
-  const text = prompt.toLowerCase();
-
-  return /(find|search|where|lokasi|cari|maps|map|near|dekat|restaurant|cafe|coffee|hotel|beach|pantai|direction|rute|route)/.test(
-    text
-  );
-};
-
-export const hasExplicitLocationInPrompt = (prompt) => /\b(in|di)\s+[a-zA-Z\s]+$/i.test(prompt.trim());
-
-export const needsClarification = ({ prompt, query, browserLocation }) => {
-  if (browserLocation) {
-    return false;
-  }
-
-  const normalizedQuery = String(query || "")
-    .toLowerCase()
-    .trim();
-  const tokens = normalizedQuery.split(/\s+/).filter(Boolean);
-
-  const genericTerms = new Set([
-    "tempat",
-    "place",
-    "lokasi",
-    "location",
-    "makan",
-    "eat",
-    "food",
-    "restaurant",
-    "coffee",
-    "cafe",
-    "hotel",
-    "wisata",
-    "tourist",
-    "attraction"
-  ]);
-
-  const isTooGeneric = tokens.length <= 2 && tokens.some((token) => genericTerms.has(token));
-  const hasExplicitLocation = hasExplicitLocationInPrompt(prompt);
-
-  return isTooGeneric && !hasExplicitLocation;
-};
-
 export const resolveLocationForSearch = ({ intentLocation, browserLocation }) => {
   if (intentLocation) {
     return intentLocation || config.defaultLocation;
@@ -131,4 +88,3 @@ export const limitRecommendations = (places) => {
       : 1;
   return (places ?? []).slice(0, safeMax);
 };
-
