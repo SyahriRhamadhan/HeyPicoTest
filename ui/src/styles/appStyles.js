@@ -244,6 +244,21 @@ export const styles = StyleSheet.create({
     borderBottomWidth: 0,
     borderRightWidth: 0
   },
+  mapPanelMobile: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    top: "28%",
+    width: "100%",
+    height: "auto",
+    zIndex: 55,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+    borderBottomWidth: 0
+  },
   panelHeader: {
     paddingVertical: 16,
     paddingHorizontal: 22,
@@ -260,6 +275,11 @@ export const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10
+  },
+  chatHeaderRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8
   },
   mapHeaderRow: {
     paddingVertical: 16,
@@ -404,6 +424,7 @@ export const styles = StyleSheet.create({
   },
   promptInput: {
     flex: 1,
+    minWidth: 0,
     color: "#ececec",
     borderRadius: 18,
     paddingHorizontal: 12,
@@ -431,6 +452,9 @@ export const styles = StyleSheet.create({
     padding: 14,
     gap: 12,
     overflow: "auto"
+  },
+  mapPanelBodyMobile: {
+    padding: 10
   },
   placeCard: {
     borderWidth: 1,
@@ -461,6 +485,9 @@ export const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#353535",
     overflow: "hidden"
+  },
+  mapFrameMobile: {
+    minHeight: 260
   },
   mapFallback: {
     height: "100%",

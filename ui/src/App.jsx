@@ -10,6 +10,7 @@ const initialAssistant = {
   role: "assistant",
   text: "Hi! I can answer normal questions and find places on map. Try: find coffee shops in Batam."
 };
+const LAST_ACTIVE_CHAT_KEY = "mapai_last_active_chat_id";
 
 const createChatSession = (session = {}) => ({
   id: session.id || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -80,6 +81,7 @@ const extractLatestMapState = (messages = []) => {
 };
 
 function App() {
+  const [isMobile, setIsMobile] = useState(false);
   const [chatView, setChatView] = useState("active");
   const [chatSessions, setChatSessions] = useState([]);
   const [activeChatId, setActiveChatId] = useState("");
@@ -100,7 +102,12 @@ function App() {
     const chats = data?.chats || [];
     if (chats.length > 0) {
       setChatSessions(chats.map((chat) => createChatSession({ id: chat.id, title: chat.title, pinned: chat.pinned, archived: chat.archived, messages: null })));
-      setActiveChatId(preferredChatId && chats.some((chat) => chat.id === preferredChatId) ? preferredChatId : chats[0].id);
+      const savedLastActiveId = localStorage.getItem(LAST_ACTIVE_CHAT_KEY) || "";
+      const nextActiveId =
+        (preferredChatId && chats.some((chat) => chat.id === preferredChatId) && preferredChatId) ||
+        (savedLastActiveId && chats.some((chat) => chat.id === savedLastActiveId) && savedLastActiveId) ||
+        chats[0].id;
+      setActiveChatId(nextActiveId);
       return;
     }
 
@@ -113,6 +120,11 @@ function App() {
       setActiveChatId(chatSessions[0].id);
     }
   }, [activeChatId, chatSessions]);
+
+  useEffect(() => {
+    if (!activeChatId) return;
+    localStorage.setItem(LAST_ACTIVE_CHAT_KEY, activeChatId);
+  }, [activeChatId]);
 
   useEffect(() => {
     const initChats = async () => {
@@ -135,6 +147,20 @@ function App() {
 
     initChats();
   }, [chatView]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth <= 940;
+      setIsMobile(mobile);
+      if (mobile) {
+        setIsSidebarOpen(false);
+      }
+    };
+
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const activeChat = chatSessions.find((session) => session.id === activeChatId) || chatSessions[0];
 
@@ -354,7 +380,8 @@ function App() {
     setIsRecommendationOpen(true);
   };
 
-  const shouldShowRecommendations = isRecommendationOpen || (activeChat?.places || []).length > 0;
+  const shouldShowRecommendations =
+    isRecommendationOpen || (!isMobile && (activeChat?.places || []).length > 0);
 
   const handleNewChat = () => {
     const createRemoteChat = async () => {
@@ -374,6 +401,7 @@ function App() {
           setActiveChatId(newSession.id);
         }
         setPrompt("");
+        if (isMobile) setIsSidebarOpen(false);
       } catch {
         const newSession = createChatSession();
         if (chatView !== "active") {
@@ -382,6 +410,7 @@ function App() {
         setChatSessions((current) => [newSession, ...current]);
         setActiveChatId(newSession.id);
         setPrompt("");
+        if (isMobile) setIsSidebarOpen(false);
       }
     };
 
@@ -390,6 +419,7 @@ function App() {
 
   const handleSelectChat = (chatId) => {
     setActiveChatId(chatId);
+    if (isMobile) setIsSidebarOpen(false);
   };
 
   const handleRenameChat = async (chatId, title) => {
@@ -503,23 +533,26 @@ function App() {
   };
 
   return (
-    <View style={styles.layout}>
-      <Sidebar
-        isOpen={isSidebarOpen}
-        onToggle={() => setIsSidebarOpen((current) => !current)}
-        chatView={chatView}
-        onChangeChatView={setChatView}
-        sessions={chatSessions}
-        activeChatId={activeChat?.id}
-        onSelectChat={handleSelectChat}
-        onNewChat={handleNewChat}
-        onOpenSettings={() => setIsSettingsOpen(true)}
-        onRenameChat={handleRenameChat}
-        onPinChat={handlePinChat}
-        onArchiveChat={(chatId) => handleArchiveChat(chatId, true)}
-        onUnarchiveChat={(chatId) => handleArchiveChat(chatId, false)}
-        onDeleteChat={handleDeleteChat}
-      />
+    <View style={styles.layout} className="app-layout">
+      {(!isMobile || isSidebarOpen) ? (
+        <Sidebar
+          isOpen={isSidebarOpen}
+          isMobile={isMobile}
+          onToggle={() => setIsSidebarOpen((current) => !current)}
+          chatView={chatView}
+          onChangeChatView={setChatView}
+          sessions={chatSessions}
+          activeChatId={activeChat?.id}
+          onSelectChat={handleSelectChat}
+          onNewChat={handleNewChat}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onRenameChat={handleRenameChat}
+          onPinChat={handlePinChat}
+          onArchiveChat={(chatId) => handleArchiveChat(chatId, true)}
+          onUnarchiveChat={(chatId) => handleArchiveChat(chatId, false)}
+          onDeleteChat={handleDeleteChat}
+        />
+      ) : null}
       <ChatPanel
         messages={activeChat?.messages || [initialAssistant]}
         prompt={prompt}
@@ -535,11 +568,13 @@ function App() {
         onToggleSidebar={() => setIsSidebarOpen((current) => !current)}
         isRecommendationOpen={shouldShowRecommendations}
         onToggleRecommendations={() => setIsRecommendationOpen((current) => !current)}
+        onOpenSettings={() => setIsSettingsOpen(true)}
         onEditLastUserMessage={handleEditLastUserMessage}
         onShowMapFromMessage={handleShowMapFromMessage}
       />
       {shouldShowRecommendations ? (
         <MapPanel
+          isMobile={isMobile}
           places={activeChat?.places || []}
           selectedIndex={activeChat?.selectedPlaceIndex || 0}
           onSelect={handleSelectPlace}

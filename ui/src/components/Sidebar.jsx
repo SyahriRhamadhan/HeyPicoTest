@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
-import { FiArchive, FiBookmark, FiEdit2, FiMenu, FiMoreHorizontal, FiPlus, FiSettings, FiTrash2, FiX } from "react-icons/fi";
+import { FiArchive, FiBookmark, FiEdit2, FiMoreHorizontal, FiPlus, FiSettings, FiTrash2, FiX } from "react-icons/fi";
 import { styles } from "../styles/appStyles";
 
 function Sidebar({
@@ -38,24 +38,13 @@ function Sidebar({
   };
 
   if (!isOpen) {
-    return (
-      <View style={styles.sidebarCollapsed}>
-        <Pressable
-          style={styles.sidebarToggleButton}
-          onPress={onToggle}
-          title="Show menu"
-          accessibilityLabel="Show menu"
-        >
-          <FiMenu size={14} color="#d6d6d6" />
-        </Pressable>
-      </View>
-    );
+    return null;
   }
 
   return (
-    <View style={styles.sidebar}>
+    <View style={styles.sidebar} className="app-sidebar app-sidebar-open">
       <View style={styles.sidebarHeader}>
-        <Text style={styles.sidebarBrand}>HeyPico</Text>
+        <Text style={styles.sidebarBrand} className="sidebar-brand-text">MapAi</Text>
         <Pressable
           style={styles.sidebarToggleButton}
           onPress={onToggle}

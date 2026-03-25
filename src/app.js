@@ -31,7 +31,7 @@ export const createApp = () => {
   app.get("/health", (_req, res) => {
     res.json({
       status: "ok",
-      service: "heypico-test-backend",
+      service: "mapai-backend",
       mapProvider: config.mapProvider,
       maxRecommendations: config.maxRecommendations
     });

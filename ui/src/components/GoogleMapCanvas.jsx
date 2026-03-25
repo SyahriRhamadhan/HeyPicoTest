@@ -3,6 +3,7 @@ import { Text, View } from "react-native";
 import { styles } from "../styles/appStyles";
 
 const GOOGLE_MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
+const GOOGLE_MAPS_CALLBACK = "__heypicoGoogleMapsReady";
 
 const loadGoogleMapsScript = (() => {
   let promise;
@@ -18,12 +19,37 @@ const loadGoogleMapsScript = (() => {
     if (promise) return promise;
 
     promise = new Promise((resolve, reject) => {
+      const existingScript = document.getElementById("google-maps-script");
+      if (existingScript) {
+        const waitUntilReady = () => {
+          if (window.google?.maps?.Map) {
+            resolve(window.google.maps);
+          } else {
+            setTimeout(waitUntilReady, 30);
+          }
+        };
+        waitUntilReady();
+        return;
+      }
+
+      window[GOOGLE_MAPS_CALLBACK] = () => {
+        if (window.google?.maps?.Map) {
+          resolve(window.google.maps);
+        } else {
+          reject(new Error("Google Maps loaded but Map constructor is unavailable."));
+        }
+      };
+
       const script = document.createElement("script");
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(GOOGLE_MAPS_KEY)}`;
+      script.id = "google-maps-script";
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(
+        GOOGLE_MAPS_KEY
+      )}&loading=async&v=weekly&callback=${GOOGLE_MAPS_CALLBACK}`;
       script.async = true;
       script.defer = true;
-      script.onload = () => resolve(window.google.maps);
-      script.onerror = () => reject(new Error("Failed to load Google Maps script."));
+      script.onerror = () => {
+        reject(new Error("Failed to load Google Maps script."));
+      };
       document.head.appendChild(script);
     });
 
@@ -106,7 +132,20 @@ function GoogleMapCanvas({ places, selectedIndex }) {
       const marker = new maps.Marker({
         map,
         position,
-        label: `${markerIndex + 1}`,
+        label: {
+          text: `${markerIndex + 1}`,
+          color: "#ffffff",
+          fontSize: "11px",
+          fontWeight: "700"
+        },
+        icon: {
+          path: maps.SymbolPath.CIRCLE,
+          scale: 10,
+          fillColor: "#ef4444",
+          fillOpacity: 1,
+          strokeColor: "#ffffff",
+          strokeWeight: 2
+        },
         title: item.name,
         animation: markerIndex === 0 ? maps.Animation.DROP : undefined
       });
@@ -129,6 +168,8 @@ function GoogleMapCanvas({ places, selectedIndex }) {
     if (focusTarget) {
       map.setCenter({ lat: focusTarget.lat, lng: focusTarget.lng });
       map.setZoom(valid.length === 1 ? 15 : 13);
+      maps.event.trigger(map, "resize");
+      map.panTo({ lat: focusTarget.lat, lng: focusTarget.lng });
     } else if (valid.length === 1) {
       map.setCenter({ lat: valid[0].lat, lng: valid[0].lng });
       map.setZoom(15);

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
-import { FiMap, FiMenu, FiNavigation, FiSend, FiSidebar } from "react-icons/fi";
+import { FiMap, FiMenu, FiNavigation, FiSend, FiSettings, FiSidebar } from "react-icons/fi";
 import { styles } from "../styles/appStyles";
 import ChatBubble from "./ChatBubble";
 
@@ -19,6 +19,7 @@ function ChatPanel({
   onToggleSidebar,
   isRecommendationOpen,
   onToggleRecommendations,
+  onOpenSettings,
   onEditLastUserMessage,
   onShowMapFromMessage
 }) {
@@ -38,7 +39,7 @@ function ChatPanel({
     .pop();
 
   return (
-    <View style={styles.chatPanel}>
+    <View style={styles.chatPanel} className="app-chat-panel">
       <View style={styles.panelHeader}>
         <View style={styles.chatHeaderRow}>
           <View style={styles.chatHeaderLeft}>
@@ -50,16 +51,26 @@ function ChatPanel({
             >
               {isSidebarOpen ? <FiSidebar size={14} color="#d6d6d6" /> : <FiMenu size={14} color="#d6d6d6" />}
             </Pressable>
-            <Text style={styles.panelHeaderText}>HeyPico Assistant</Text>
+            <Text style={styles.panelHeaderText}>MapAi</Text>
           </View>
-          <Pressable
-            style={styles.iconButton}
-            onPress={onToggleRecommendations}
-            title={isRecommendationOpen ? "Hide recommendations" : "Show recommendations"}
-            accessibilityLabel={isRecommendationOpen ? "Hide recommendations" : "Show recommendations"}
-          >
-            <FiMap size={14} color="#d6d6d6" />
-          </Pressable>
+          <View style={styles.chatHeaderRight}>
+            <Pressable
+              style={styles.iconButton}
+              onPress={onOpenSettings}
+              title="Open settings"
+              accessibilityLabel="Open settings"
+            >
+              <FiSettings size={14} color="#d6d6d6" />
+            </Pressable>
+            <Pressable
+              style={styles.iconButton}
+              onPress={onToggleRecommendations}
+              title={isRecommendationOpen ? "Hide recommendations" : "Show recommendations"}
+              accessibilityLabel={isRecommendationOpen ? "Hide recommendations" : "Show recommendations"}
+            >
+              <FiMap size={14} color="#d6d6d6" />
+            </Pressable>
+          </View>
         </View>
       </View>
 
@@ -83,9 +94,9 @@ function ChatPanel({
         ))}
       </ScrollView>
 
-      <View style={styles.composerWrap}>
+      <View style={styles.composerWrap} className="chat-composer-wrap">
         {inputHint ? <Text style={styles.inputHintText}>{inputHint}</Text> : null}
-        <View style={styles.inputBar}>
+        <View style={styles.inputBar} className="chat-input-bar">
         <select
           className="rn-model-select"
           value={selectedModel}
@@ -101,6 +112,7 @@ function ChatPanel({
         </select>
         <TextInput
           style={styles.promptInput}
+          className="chat-prompt-input"
           value={prompt}
           onChangeText={onPromptChange}
           onSubmitEditing={onSend}

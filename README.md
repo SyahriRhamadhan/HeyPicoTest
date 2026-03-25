@@ -1,4 +1,4 @@
-# HeyPico Code Test 2
+# MapAi
 
 Local LLM + Maps assistant with:
 - Node.js/Express backend
@@ -52,7 +52,7 @@ OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=qwen2.5-coder:7b
 MAP_PROVIDER=auto
 GOOGLE_MAPS_API_KEY=your_key_here
-OSM_USER_AGENT=heypico-test-map-app/1.0
+OSM_USER_AGENT=mapai/1.0
 RATE_LIMIT_WINDOW_MS=60000
 RATE_LIMIT_MAX_REQUESTS=30
 MAX_RECOMMENDATIONS=4
@@ -164,4 +164,3 @@ npm run prisma:migrate
 npm run prisma:deploy
 npm run db:seed
 ```
-

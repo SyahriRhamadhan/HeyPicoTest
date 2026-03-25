@@ -9,7 +9,7 @@ export const config = {
   ollamaModel: process.env.OLLAMA_MODEL ?? "qwen2.5-coder:7b",
   mapProvider: process.env.MAP_PROVIDER ?? "auto",
   googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY,
-  osmUserAgent: process.env.OSM_USER_AGENT ?? "heypico-test-map-app/1.0",
+  osmUserAgent: process.env.OSM_USER_AGENT ?? "mapai/1.0",
   rateLimitWindowMs: Number(process.env.RATE_LIMIT_WINDOW_MS ?? 60_000),
   rateLimitMaxRequests: Number(process.env.RATE_LIMIT_MAX_REQUESTS ?? 30),
   maxRecommendations: Number(process.env.MAX_RECOMMENDATIONS ?? 1)
