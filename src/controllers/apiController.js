@@ -37,7 +37,9 @@ import {
   getChatSummary,
   getRecentMessagesAcrossChats,
   getRecentChatMessages,
+  getChatSessionById,
   listChatSessions,
+  updateChatSession,
   upsertChatSummary
 } from "../services/chatStore.js";
 
@@ -495,6 +497,41 @@ export const handleAssistant = async (req, res) => {
         });
       }
 
+      const entityMode = await classifyMapQueryMode({
+        prompt,
+        query: mapEntity,
+        model
+      }).catch(() => "entity");
+
+      if (entityMode !== "entity") {
+        const resolvedLocation = resolveLocationForSearch({
+          intentLocation: plannedAction.location || intent.location || "",
+          browserLocation
+        });
+
+        const mapsResult = await searchPlaces({
+          query: plannedAction.query || intent.query || mapEntity,
+          location: resolvedLocation,
+          placeType: plannedAction.placeType || intent.placeType || "place"
+        });
+        const rankedPlaces = sortPlacesByBrowserLocation(mapsResult.places ?? [], browserLocation);
+        const limitedPlaces = limitRecommendations(rankedPlaces);
+
+        return respond({
+          mode: "map",
+          prompt,
+          model: model || null,
+          provider: mapsResult.provider,
+          requestQuery: mapsResult.requestQuery,
+          totalResults: limitedPlaces.length,
+          places: limitedPlaces,
+          assistantMessage:
+            limitedPlaces.length > 0
+              ? `${answer}\n\nI found ${limitedPlaces.length} recommendations on the map.`
+              : `${answer}\n\nI couldn't find matching places on the map.`
+        });
+      }
+
       const mapResult = await searchEntityOnMap({ query: mapEntity });
       return respond({
         mode: "map",
@@ -637,13 +674,18 @@ export const handleCreateChat = async (req, res) => {
   }
 };
 
-export const handleListChats = async (_req, res) => {
+export const handleListChats = async (req, res) => {
   try {
-    const chats = await listChatSessions();
+    const requestedView = String(req.query?.view || "active").trim().toLowerCase();
+    const view = requestedView === "archived" || requestedView === "all" ? requestedView : "active";
+    const chats = await listChatSessions(view);
     return res.json({
+      view,
       chats: chats.map((chat) => ({
         id: chat.id,
         title: chat.title,
+        pinned: Boolean(chat.pinned),
+        archived: Boolean(chat.archived),
         createdAt: chat.createdAt,
         updatedAt: chat.updatedAt
       }))
@@ -705,6 +747,69 @@ export const handleClearMemory = async (req, res) => {
     const result = await clearAllChats();
     return res.json({
       scope: "all",
+      ...result
+    });
+  } catch (error) {
+    return sendError(res, error);
+  }
+};
+
+export const handleUpdateChat = async (req, res) => {
+  try {
+    const chatId = String(req.params.chatId || "").trim();
+    if (!chatId) {
+      return res.status(400).json({ error: "ValidationError", message: "chatId is required" });
+    }
+
+    const existing = await getChatSessionById(chatId);
+    if (!existing) {
+      return res.status(404).json({ error: "NotFound", message: "Chat session not found" });
+    }
+
+    const rawTitle = req.body?.title;
+    const title = typeof rawTitle === "string" ? rawTitle.trim() : undefined;
+    if (typeof rawTitle === "string" && !title) {
+      return res.status(400).json({ error: "ValidationError", message: "title cannot be empty" });
+    }
+
+    const pinned = typeof req.body?.pinned === "boolean" ? req.body.pinned : undefined;
+    const archived = typeof req.body?.archived === "boolean" ? req.body.archived : undefined;
+
+    const updated = await updateChatSession({
+      chatId,
+      title,
+      pinned,
+      archived
+    });
+
+    return res.json({
+      id: updated?.id || chatId,
+      title: updated?.title || existing.title,
+      pinned: Boolean(updated?.pinned ?? existing.pinned),
+      archived: Boolean(updated?.archived ?? existing.archived),
+      createdAt: updated?.createdAt || existing.createdAt,
+      updatedAt: updated?.updatedAt || existing.updatedAt
+    });
+  } catch (error) {
+    return sendError(res, error);
+  }
+};
+
+export const handleDeleteChat = async (req, res) => {
+  try {
+    const chatId = String(req.params.chatId || "").trim();
+    if (!chatId) {
+      return res.status(400).json({ error: "ValidationError", message: "chatId is required" });
+    }
+
+    const existing = await getChatSessionById(chatId);
+    if (!existing) {
+      return res.status(404).json({ error: "NotFound", message: "Chat session not found" });
+    }
+
+    const result = await clearChatById(chatId);
+    return res.json({
+      chatId,
       ...result
     });
   } catch (error) {

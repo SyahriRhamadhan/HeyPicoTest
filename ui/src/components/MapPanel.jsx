@@ -7,7 +7,7 @@ function MapPanel({ places, selectedIndex, onSelect, onClose }) {
   const selectedPlace = places[selectedIndex] || null;
 
   return (
-    <View style={[styles.panel, styles.mapPanel]}>
+    <View style={[styles.panel, styles.mapPanel]} className="map-panel">
       <View style={styles.mapHeaderRow}>
         <Text style={styles.panelHeaderText}>Recommendations</Text>
         <Pressable style={styles.iconButton} onPress={onClose} title="Hide recommendations" accessibilityLabel="Hide recommendations">
@@ -15,7 +15,7 @@ function MapPanel({ places, selectedIndex, onSelect, onClose }) {
         </Pressable>
       </View>
 
-      <View style={styles.panelBody}>
+      <View style={styles.panelBody} className="map-panel-body">
         <select
           className="rn-select"
           value={places.length ? String(selectedIndex) : ""}

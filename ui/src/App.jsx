@@ -14,6 +14,8 @@ const initialAssistant = {
 const createChatSession = (session = {}) => ({
   id: session.id || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   title: session.title || "New chat",
+  pinned: Boolean(session.pinned),
+  archived: Boolean(session.archived),
   messages: session.messages || [initialAssistant],
   places: [],
   selectedPlaceIndex: 0,
@@ -78,6 +80,7 @@ const extractLatestMapState = (messages = []) => {
 };
 
 function App() {
+  const [chatView, setChatView] = useState("active");
   const [chatSessions, setChatSessions] = useState([]);
   const [activeChatId, setActiveChatId] = useState("");
   const [prompt, setPrompt] = useState("");
@@ -90,6 +93,21 @@ function App() {
   const [inputHint, setInputHint] = useState("");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
+  const refreshChatSessions = async (preferredChatId = "", view = chatView) => {
+    const normalizedView = view === "archived" ? "archived" : "active";
+    const response = await fetch(`/api/chats?view=${encodeURIComponent(normalizedView)}`);
+    const data = await response.json();
+    const chats = data?.chats || [];
+    if (chats.length > 0) {
+      setChatSessions(chats.map((chat) => createChatSession({ id: chat.id, title: chat.title, pinned: chat.pinned, archived: chat.archived, messages: null })));
+      setActiveChatId(preferredChatId && chats.some((chat) => chat.id === preferredChatId) ? preferredChatId : chats[0].id);
+      return;
+    }
+
+    setChatSessions([]);
+    setActiveChatId("");
+  };
+
   useEffect(() => {
     if (!activeChatId && chatSessions.length > 0) {
       setActiveChatId(chatSessions[0].id);
@@ -99,25 +117,24 @@ function App() {
   useEffect(() => {
     const initChats = async () => {
       try {
-        const response = await fetch("/api/chats");
-        const data = await response.json();
-        const chats = data?.chats || [];
-        if (chats.length > 0) {
-          setChatSessions(chats.map((chat) => createChatSession({ id: chat.id, title: chat.title, messages: null })));
-          setActiveChatId(chats[0].id);
-          return;
-        }
+        await refreshChatSessions("", chatView);
+        return;
       } catch {
         // Fallback to local ephemeral chat if backend list fails.
       }
 
-      const fallback = createChatSession();
-      setChatSessions([fallback]);
-      setActiveChatId(fallback.id);
+      if (chatView === "active") {
+        const fallback = createChatSession();
+        setChatSessions([fallback]);
+        setActiveChatId(fallback.id);
+      } else {
+        setChatSessions([]);
+        setActiveChatId("");
+      }
     };
 
     initChats();
-  }, []);
+  }, [chatView]);
 
   const activeChat = chatSessions.find((session) => session.id === activeChatId) || chatSessions[0];
 
@@ -348,12 +365,20 @@ function App() {
           body: JSON.stringify({ title: "New chat" })
         });
         const chat = await response.json();
-        const newSession = createChatSession({ id: chat.id, title: chat.title, messages: null });
-        setChatSessions((current) => [newSession, ...current]);
-        setActiveChatId(newSession.id);
+        const newSession = createChatSession({ id: chat.id, title: chat.title, pinned: chat.pinned, archived: chat.archived, messages: null });
+        if (chatView !== "active") {
+          setChatView("active");
+          await refreshChatSessions(chat.id, "active");
+        } else {
+          setChatSessions((current) => [newSession, ...current]);
+          setActiveChatId(newSession.id);
+        }
         setPrompt("");
       } catch {
         const newSession = createChatSession();
+        if (chatView !== "active") {
+          setChatView("active");
+        }
         setChatSessions((current) => [newSession, ...current]);
         setActiveChatId(newSession.id);
         setPrompt("");
@@ -365,6 +390,56 @@ function App() {
 
   const handleSelectChat = (chatId) => {
     setActiveChatId(chatId);
+  };
+
+  const handleRenameChat = async (chatId, title) => {
+    try {
+      await fetch(`/api/chats/${encodeURIComponent(chatId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title })
+      });
+      await refreshChatSessions(activeChat?.id || chatId, chatView);
+    } catch {
+      // no-op
+    }
+  };
+
+  const handlePinChat = async (chatId, pinned) => {
+    try {
+      await fetch(`/api/chats/${encodeURIComponent(chatId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pinned })
+      });
+      await refreshChatSessions(activeChat?.id || chatId, chatView);
+    } catch {
+      // no-op
+    }
+  };
+
+  const handleArchiveChat = async (chatId, archived = true) => {
+    try {
+      await fetch(`/api/chats/${encodeURIComponent(chatId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ archived })
+      });
+      await refreshChatSessions(activeChat?.id === chatId ? "" : activeChat?.id || "", chatView);
+    } catch {
+      // no-op
+    }
+  };
+
+  const handleDeleteChat = async (chatId) => {
+    try {
+      await fetch(`/api/chats/${encodeURIComponent(chatId)}`, {
+        method: "DELETE"
+      });
+      await refreshChatSessions(activeChat?.id === chatId ? "" : activeChat?.id || "", chatView);
+    } catch {
+      // no-op
+    }
   };
 
   const handleSelectPlace = (index) => {
@@ -387,14 +462,29 @@ function App() {
       });
     } finally {
       setIsSettingsOpen(false);
-      const response = await fetch("/api/chats");
+      const response = await fetch(`/api/chats?view=${encodeURIComponent(chatView)}`);
       const data = await response.json();
       const chats = data?.chats || [];
       if (chats.length > 0) {
-        setChatSessions(chats.map((chat) => createChatSession({ id: chat.id, title: chat.title, messages: null })));
+        setChatSessions(
+          chats.map((chat) =>
+            createChatSession({
+              id: chat.id,
+              title: chat.title,
+              pinned: chat.pinned,
+              archived: chat.archived,
+              messages: null
+            })
+          )
+        );
         setActiveChatId(chats[0].id);
       } else {
-        handleNewChat();
+        if (chatView === "active") {
+          handleNewChat();
+        } else {
+          setChatSessions([]);
+          setActiveChatId("");
+        }
       }
     }
   };
@@ -417,11 +507,18 @@ function App() {
       <Sidebar
         isOpen={isSidebarOpen}
         onToggle={() => setIsSidebarOpen((current) => !current)}
+        chatView={chatView}
+        onChangeChatView={setChatView}
         sessions={chatSessions}
         activeChatId={activeChat?.id}
         onSelectChat={handleSelectChat}
         onNewChat={handleNewChat}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        onRenameChat={handleRenameChat}
+        onPinChat={handlePinChat}
+        onArchiveChat={(chatId) => handleArchiveChat(chatId, true)}
+        onUnarchiveChat={(chatId) => handleArchiveChat(chatId, false)}
+        onDeleteChat={handleDeleteChat}
       />
       <ChatPanel
         messages={activeChat?.messages || [initialAssistant]}

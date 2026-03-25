@@ -4,9 +4,11 @@ import {
   handleClearMemory,
   handleChatMessages,
   handleCreateChat,
+  handleDeleteChat,
   handleListChats,
   handleMapQuery,
-  handleModels
+  handleModels,
+  handleUpdateChat
 } from "../controllers/apiController.js";
 
 const apiRouter = Router();
@@ -16,6 +18,8 @@ apiRouter.post("/assistant", handleAssistant);
 apiRouter.get("/models", handleModels);
 apiRouter.post("/chats", handleCreateChat);
 apiRouter.get("/chats", handleListChats);
+apiRouter.patch("/chats/:chatId", handleUpdateChat);
+apiRouter.delete("/chats/:chatId", handleDeleteChat);
 apiRouter.get("/chats/:chatId/messages", handleChatMessages);
 apiRouter.post("/memory/clear", handleClearMemory);
 

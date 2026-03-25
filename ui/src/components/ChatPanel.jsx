@@ -65,6 +65,7 @@ function ChatPanel({
 
       <ScrollView
         ref={scrollRef}
+        className="chat-scroll-area"
         style={styles.chatLog}
         contentContainerStyle={styles.chatContent}
         onContentSizeChange={() => scrollRef.current?.scrollToEnd?.({ animated: true })}
@@ -113,7 +114,7 @@ function ChatPanel({
           title="Send"
           accessibilityLabel="Send"
         >
-          <FiSend size={14} color="#111" />
+          {loading ? <Text style={styles.buttonText}>...</Text> : <FiSend size={14} color="#111" />}
         </Pressable>
         <Pressable
           style={[styles.iconActionButton, styles.locationButton]}

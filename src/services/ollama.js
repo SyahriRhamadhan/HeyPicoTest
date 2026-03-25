@@ -190,8 +190,13 @@ Examples false: "show singapore on map", "tunjukkan jakarta di peta", "where is 
 export const classifyMapQueryMode = async ({ prompt, query, model }) => {
   const systemPrompt = `Classify map query type.
 Return JSON only: {"mode":"entity"|"nearby"}
-- "entity": user asks to show a specific place/entity on map (e.g. singapore, jakarta, eiffel tower).
-- "nearby": user asks category search needing area/context (e.g. pharmacy, coffee shops, restaurant).`;
+- "entity": user asks to pin one specific named place/landmark/address (e.g. singapore, jakarta, eiffel tower, marina bay sands).
+- "nearby": user asks category/discovery/list/recommendation queries (e.g. pharmacy, coffee shops, restaurant, "best hotel in singapore", "hotel terbaik di singapore", "cari cafe di batam").
+Rules:
+1) If the query implies "best/top/recommend/list/find/search/terbaik/rekomendasi", choose "nearby".
+2) If query is a generic business type (hotel/cafe/restaurant/pharmacy/etc), choose "nearby".
+3) Use "entity" only for a single concrete named target.
+4) Prefer "nearby" when uncertain.`;
 
   const { data } = await axios.post(
     `${config.ollamaBaseUrl}/api/generate`,

@@ -31,6 +31,54 @@ body {
   padding: 8px 10px;
 }
 
+.map-panel-body {
+  scrollbar-width: thin;
+  scrollbar-color: #505050 #242424;
+}
+
+.map-panel-body::-webkit-scrollbar {
+  width: 9px;
+}
+
+.map-panel-body::-webkit-scrollbar-track {
+  background: #242424;
+  border-radius: 12px;
+}
+
+.map-panel-body::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #5a5a5a 0%, #4a4a4a 100%);
+  border-radius: 12px;
+  border: 2px solid #242424;
+}
+
+.map-panel-body::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #6a6a6a 0%, #595959 100%);
+}
+
+.chat-scroll-area {
+  scrollbar-width: thin;
+  scrollbar-color: #505050 #242424;
+}
+
+.chat-scroll-area::-webkit-scrollbar {
+  width: 9px;
+}
+
+.chat-scroll-area::-webkit-scrollbar-track {
+  background: #242424;
+  border-radius: 12px;
+}
+
+.chat-scroll-area::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #5a5a5a 0%, #4a4a4a 100%);
+  border-radius: 12px;
+  border: 2px solid #242424;
+}
+
+.chat-scroll-area::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #6a6a6a 0%, #595959 100%);
+}
+
 @media (max-width: 940px) {
   body {
     overflow: auto;

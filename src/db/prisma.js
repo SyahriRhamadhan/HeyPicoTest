@@ -2,6 +2,14 @@ import { PrismaClient } from "@prisma/client";
 
 export const prisma = new PrismaClient();
 
+const ensureChatSessionColumn = async (columnName, columnDefSql) => {
+  const columns = await prisma.$queryRawUnsafe(`PRAGMA table_info("ChatSession");`);
+  const exists = Array.isArray(columns) && columns.some((column) => String(column.name) === columnName);
+  if (!exists) {
+    await prisma.$executeRawUnsafe(`ALTER TABLE "ChatSession" ADD COLUMN "${columnName}" ${columnDefSql};`);
+  }
+};
+
 export const initChatSchema = async () => {
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "ChatSession" (
@@ -42,4 +50,8 @@ export const initChatSchema = async () => {
         ON DELETE CASCADE ON UPDATE CASCADE
     );
   `);
+
+  await ensureChatSessionColumn("pinned", "INTEGER NOT NULL DEFAULT 0");
+  await ensureChatSessionColumn("archived", "INTEGER NOT NULL DEFAULT 0");
+  await prisma.$executeRawUnsafe(`UPDATE "ChatSession" SET "pinned" = COALESCE("pinned", 0), "archived" = COALESCE("archived", 0);`);
 };

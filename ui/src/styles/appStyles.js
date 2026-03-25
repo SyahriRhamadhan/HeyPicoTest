@@ -74,6 +74,41 @@ export const styles = StyleSheet.create({
   historyList: {
     gap: 4
   },
+  historyViewTabs: {
+    flexDirection: "row",
+    gap: 6
+  },
+  historyViewTab: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#363636",
+    borderRadius: 10,
+    backgroundColor: "#202020",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 7
+  },
+  historyViewTabActive: {
+    borderColor: "#4b4b4b",
+    backgroundColor: "#2b2b2b"
+  },
+  historyViewTabText: {
+    color: "#aeb6c3",
+    fontSize: 12,
+    fontWeight: "600"
+  },
+  historyViewTabTextActive: {
+    color: "#ececec"
+  },
+  historyItemWrap: {
+    gap: 4
+  },
+  historyEmptyText: {
+    color: "#8f96a3",
+    fontSize: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 2
+  },
   sidebarFooter: {
     marginTop: "auto",
     paddingTop: 10
@@ -99,16 +134,95 @@ export const styles = StyleSheet.create({
     backgroundColor: "#202020",
     borderRadius: 10,
     paddingVertical: 8,
-    paddingHorizontal: 10
+    paddingHorizontal: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8
+  },
+  historyItemEdit: {
+    flexDirection: "column",
+    alignItems: "stretch"
   },
   historyItemActive: {
     backgroundColor: "#2b2b2b",
     borderWidth: 1,
     borderColor: "#3a3a3a"
   },
+  historyMainButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6
+  },
+  historyMenuButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#3a3a3a",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#1d1d1d"
+  },
   historyItemText: {
     color: "#b0b0b0",
+    fontSize: 13,
+    flex: 1
+  },
+  historyMenuCard: {
+    borderWidth: 1,
+    borderColor: "#3a3a3a",
+    backgroundColor: "#222222",
+    borderRadius: 10,
+    paddingVertical: 6
+  },
+  historyMenuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 7,
+    paddingHorizontal: 10
+  },
+  historyMenuItemDanger: {
+    borderTopWidth: 1,
+    borderTopColor: "#3a3a3a",
+    marginTop: 4,
+    paddingTop: 9
+  },
+  historyMenuText: {
+    color: "#d8dee7",
     fontSize: 13
+  },
+  historyMenuTextDanger: {
+    color: "#ff9d9d"
+  },
+  historyRenameInput: {
+    color: "#ececec",
+    borderWidth: 1,
+    borderColor: "#3a3a3a",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    fontSize: 13,
+    backgroundColor: "#1b1b1b"
+  },
+  historyEditActions: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 8
+  },
+  historyEditButton: {
+    borderWidth: 1,
+    borderColor: "#3a3a3a",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: "#222"
+  },
+  historyEditButtonText: {
+    color: "#d8dee7",
+    fontSize: 12,
+    fontWeight: "600"
   },
   panel: {
     backgroundColor: "#212121",

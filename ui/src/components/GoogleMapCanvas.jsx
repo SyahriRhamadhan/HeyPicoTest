@@ -35,6 +35,7 @@ function GoogleMapCanvas({ places, selectedIndex }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const markersRef = useRef([]);
+  const infoWindowRef = useRef(null);
   const selectedCircleRef = useRef(null);
   const [mapError, setMapError] = useState("");
 
@@ -85,15 +86,18 @@ function GoogleMapCanvas({ places, selectedIndex }) {
         index,
         name: place.name,
         formattedAddress: place.formattedAddress,
-        lat: place?.location?.lat,
-        lng: place?.location?.lng
+        lat: Number(place?.location?.lat),
+        lng: Number(place?.location?.lng)
       }))
-      .filter((item) => typeof item.lat === "number" && typeof item.lng === "number");
+      .filter((item) => Number.isFinite(item.lat) && Number.isFinite(item.lng));
 
     if (!valid.length) return;
 
     const bounds = new maps.LatLngBounds();
-    const infoWindow = new maps.InfoWindow();
+    if (!infoWindowRef.current) {
+      infoWindowRef.current = new maps.InfoWindow();
+    }
+    const infoWindow = infoWindowRef.current;
 
     valid.forEach((item, markerIndex) => {
       const position = { lat: item.lat, lng: item.lng };
@@ -103,7 +107,8 @@ function GoogleMapCanvas({ places, selectedIndex }) {
         map,
         position,
         label: `${markerIndex + 1}`,
-        title: item.name
+        title: item.name,
+        animation: markerIndex === 0 ? maps.Animation.DROP : undefined
       });
 
       marker.addListener("click", () => {
@@ -118,18 +123,23 @@ function GoogleMapCanvas({ places, selectedIndex }) {
       markersRef.current.push(marker);
     });
 
-    if (valid.length === 1) {
+    const selected = valid.find((item) => item.index === selectedIndex);
+    const focusTarget = selected || valid[0];
+
+    if (focusTarget) {
+      map.setCenter({ lat: focusTarget.lat, lng: focusTarget.lng });
+      map.setZoom(valid.length === 1 ? 15 : 13);
+    } else if (valid.length === 1) {
       map.setCenter({ lat: valid[0].lat, lng: valid[0].lng });
       map.setZoom(15);
     } else {
       map.fitBounds(bounds, 40);
     }
 
-    const selected = valid.find((item) => item.index === selectedIndex);
-    if (selected) {
+    if (focusTarget) {
       selectedCircleRef.current = new maps.Circle({
         map,
-        center: { lat: selected.lat, lng: selected.lng },
+        center: { lat: focusTarget.lat, lng: focusTarget.lng },
         radius: 150,
         strokeColor: "#1d4ed8",
         strokeOpacity: 0.9,
@@ -137,6 +147,19 @@ function GoogleMapCanvas({ places, selectedIndex }) {
         fillColor: "#60a5fa",
         fillOpacity: 0.2
       });
+
+      const selectedMarker = markersRef.current.find(
+        (marker, markerIndex) => valid[markerIndex]?.index === focusTarget.index
+      );
+
+      if (selectedMarker) {
+        infoWindow.setContent(
+          `<div style="color:#111827;font-family:Segoe UI,Arial,sans-serif;line-height:1.4;">
+             <strong>${focusTarget.name}</strong><br/>${focusTarget.formattedAddress || ""}
+           </div>`
+        );
+        infoWindow.open({ anchor: selectedMarker, map });
+      }
     }
   }, [places, selectedIndex]);
 

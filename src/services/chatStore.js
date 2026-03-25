@@ -26,17 +26,58 @@ export const ensureChatSession = async (chatId) => {
   });
 };
 
-export const listChatSessions = async () => {
-  return prisma.chatSession.findMany({
-    orderBy: { updatedAt: "desc" },
-    include: {
-      messages: {
-        where: { role: "user" },
-        orderBy: { createdAt: "asc" },
-        take: 1
-      }
-    }
-  });
+export const listChatSessions = async (view = "active") => {
+  const normalizedView =
+    view === "archived" || view === "all" ? view : "active";
+  const whereClause =
+    normalizedView === "archived"
+      ? `WHERE COALESCE("archived", 0) = 1`
+      : normalizedView === "all"
+        ? ""
+        : `WHERE COALESCE("archived", 0) = 0`;
+
+  const rows = await prisma.$queryRawUnsafe(
+    `SELECT
+      "id",
+      "title",
+      "createdAt",
+      "updatedAt",
+      COALESCE("pinned", 0) AS "pinned",
+      COALESCE("archived", 0) AS "archived"
+     FROM "ChatSession"
+     ${whereClause}
+     ORDER BY COALESCE("pinned", 0) DESC, "updatedAt" DESC`
+  );
+
+  return (rows || []).map((row) => ({
+    ...row,
+    pinned: Boolean(Number(row.pinned || 0)),
+    archived: Boolean(Number(row.archived || 0))
+  }));
+};
+
+export const getChatSessionById = async (chatId) => {
+  const rows = await prisma.$queryRawUnsafe(
+    `SELECT
+      "id",
+      "title",
+      "createdAt",
+      "updatedAt",
+      COALESCE("pinned", 0) AS "pinned",
+      COALESCE("archived", 0) AS "archived"
+     FROM "ChatSession"
+     WHERE "id" = ?
+     LIMIT 1`,
+    chatId
+  );
+
+  const row = Array.isArray(rows) ? rows[0] : null;
+  if (!row) return null;
+  return {
+    ...row,
+    pinned: Boolean(Number(row.pinned || 0)),
+    archived: Boolean(Number(row.archived || 0))
+  };
 };
 
 export const getChatMessages = async (chatId) => {
@@ -157,4 +198,31 @@ export const clearChatById = async (chatId) => {
     deletedMessages: deletedMessages.count,
     deletedChats: deletedChat.count
   };
+};
+
+export const updateChatSession = async ({ chatId, title, pinned, archived }) => {
+  const updates = [];
+  const values = [];
+
+  if (typeof title === "string") {
+    updates.push(`"title" = ?`);
+    values.push(title);
+  }
+  if (typeof pinned === "boolean") {
+    updates.push(`"pinned" = ?`);
+    values.push(pinned ? 1 : 0);
+  }
+  if (typeof archived === "boolean") {
+    updates.push(`"archived" = ?`);
+    values.push(archived ? 1 : 0);
+  }
+  updates.push(`"updatedAt" = CURRENT_TIMESTAMP`);
+
+  await prisma.$executeRawUnsafe(
+    `UPDATE "ChatSession" SET ${updates.join(", ")} WHERE "id" = ?`,
+    ...values,
+    chatId
+  );
+
+  return getChatSessionById(chatId);
 };
