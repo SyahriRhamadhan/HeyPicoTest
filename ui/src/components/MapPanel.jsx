@@ -1,14 +1,17 @@
-import { Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { styles } from "../styles/appStyles";
 import GoogleMapCanvas from "./GoogleMapCanvas";
 
-function MapPanel({ places, selectedIndex, onSelect }) {
+function MapPanel({ places, selectedIndex, onSelect, onClose }) {
   const selectedPlace = places[selectedIndex] || null;
 
   return (
     <View style={[styles.panel, styles.mapPanel]}>
-      <View style={styles.panelHeader}>
+      <View style={styles.mapHeaderRow}>
         <Text style={styles.panelHeaderText}>Recommendations</Text>
+        <Pressable style={styles.headerChipButton} onPress={onClose}>
+          <Text style={styles.headerChipButtonText}>Hide</Text>
+        </Pressable>
       </View>
 
       <View style={styles.panelBody}>

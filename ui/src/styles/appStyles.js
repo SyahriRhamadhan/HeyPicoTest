@@ -2,19 +2,50 @@ import { StyleSheet } from "react-native";
 
 export const styles = StyleSheet.create({
   layout: {
-    minHeight: "100vh",
+    height: "100vh",
     width: "100%",
     backgroundColor: "#1f1f1f",
     flexDirection: "row",
-    color: "#ececec"
+    color: "#ececec",
+    overflow: "hidden"
   },
   sidebar: {
     width: 260,
+    height: "100vh",
     backgroundColor: "#171717",
     borderRightWidth: 1,
     borderColor: "#2b2b2b",
     padding: 14,
-    gap: 12
+    gap: 12,
+    overflow: "auto"
+  },
+  sidebarCollapsed: {
+    width: 64,
+    height: "100vh",
+    backgroundColor: "#171717",
+    borderRightWidth: 1,
+    borderColor: "#2b2b2b",
+    padding: 10,
+    alignItems: "center",
+    overflow: "auto"
+  },
+  sidebarHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between"
+  },
+  sidebarToggleButton: {
+    borderWidth: 1,
+    borderColor: "#363636",
+    backgroundColor: "#202020",
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 9
+  },
+  sidebarToggleText: {
+    color: "#d6d6d6",
+    fontWeight: "700",
+    fontSize: 12
   },
   sidebarBrand: {
     color: "#f5f5f5",
@@ -38,11 +69,18 @@ export const styles = StyleSheet.create({
     gap: 4
   },
   historyItem: {
-    color: "#b0b0b0",
     backgroundColor: "#202020",
     borderRadius: 10,
     paddingVertical: 8,
-    paddingHorizontal: 10,
+    paddingHorizontal: 10
+  },
+  historyItemActive: {
+    backgroundColor: "#2b2b2b",
+    borderWidth: 1,
+    borderColor: "#3a3a3a"
+  },
+  historyItemText: {
+    color: "#b0b0b0",
     fontSize: 13
   },
   panel: {
@@ -53,19 +91,56 @@ export const styles = StyleSheet.create({
   },
   chatPanel: {
     flex: 1,
-    justifyContent: "space-between"
+    justifyContent: "space-between",
+    height: "100vh",
+    overflow: "hidden"
   },
   mapPanel: {
     width: 360,
-    margin: 16,
-    marginLeft: 0,
-    height: "calc(100vh - 32px)"
+    height: "100vh",
+    borderRadius: 0,
+    borderTopWidth: 0,
+    borderBottomWidth: 0,
+    borderRightWidth: 0
   },
   panelHeader: {
     paddingVertical: 16,
     paddingHorizontal: 22,
     borderBottomWidth: 1,
     borderColor: "#2e2e2e"
+  },
+  chatHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10
+  },
+  chatHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10
+  },
+  mapHeaderRow: {
+    paddingVertical: 16,
+    paddingHorizontal: 14,
+    borderBottomWidth: 1,
+    borderColor: "#2e2e2e",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between"
+  },
+  headerChipButton: {
+    borderWidth: 1,
+    borderColor: "#3a3a3a",
+    backgroundColor: "#242424",
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingHorizontal: 10
+  },
+  headerChipButtonText: {
+    color: "#d6d6d6",
+    fontSize: 12,
+    fontWeight: "600"
   },
   panelHeaderText: {
     color: "#f0f0f0",
@@ -115,9 +190,6 @@ export const styles = StyleSheet.create({
     marginTop: 8
   },
   inputBar: {
-    marginHorizontal: "auto",
-    marginBottom: 18,
-    width: "min(860px, calc(100% - 44px))",
     borderTopWidth: 1,
     borderColor: "#2e2e2e",
     borderWidth: 1,
@@ -127,6 +199,17 @@ export const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 8,
     alignItems: "center"
+  },
+  composerWrap: {
+    marginHorizontal: "auto",
+    marginBottom: 18,
+    width: "min(860px, calc(100% - 44px))",
+    gap: 6
+  },
+  inputHintText: {
+    color: "#f59e0b",
+    fontSize: 12,
+    paddingHorizontal: 6
   },
   promptInput: {
     flex: 1,
@@ -156,8 +239,10 @@ export const styles = StyleSheet.create({
     color: "#ffffff"
   },
   panelBody: {
+    flex: 1,
     padding: 12,
-    gap: 10
+    gap: 10,
+    overflow: "auto"
   },
   placeCard: {
     borderWidth: 1,

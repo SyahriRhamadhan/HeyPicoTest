@@ -214,3 +214,32 @@ export const searchPlacesOsm = async ({ query, location, placeType }) => {
     places
   };
 };
+
+export const searchEntityOnOsm = async ({ query }) => {
+  const requestQuery = query;
+  const data = await searchNominatimText(query, 1);
+  const first = data?.[0];
+
+  const places = first
+    ? [
+        {
+          name: first.name || first.display_name?.split(",")?.[0] || "Unknown place",
+          formattedAddress: first.display_name || query,
+          rating: null,
+          location: {
+            lat: Number(first.lat),
+            lng: Number(first.lon)
+          },
+          mapsUrl: toMapsSearchUrl(Number(first.lat), Number(first.lon)),
+          embedUrl: toEmbedUrl(Number(first.lat), Number(first.lon))
+        }
+      ]
+    : [];
+
+  return {
+    provider: "openstreetmap",
+    requestQuery,
+    totalResults: places.length,
+    places
+  };
+};

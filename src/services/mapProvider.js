@@ -1,6 +1,6 @@
 import { config } from "../config.js";
-import { searchPlaces as searchPlacesGoogle } from "./googleMaps.js";
-import { searchPlacesOsm } from "./openStreetMap.js";
+import { searchEntityOnGoogleMap, searchPlaces as searchPlacesGoogle } from "./googleMaps.js";
+import { searchEntityOnOsm, searchPlacesOsm } from "./openStreetMap.js";
 
 const knownProviders = new Set(["auto", "google", "osm"]);
 
@@ -24,6 +24,29 @@ export const searchPlaces = async ({ query, location, placeType }) => {
     return await searchPlacesGoogle({ query, location });
   } catch (error) {
     const result = await searchPlacesOsm({ query, location, placeType });
+    return {
+      ...result,
+      fallbackUsed: true,
+      fallbackReason: error?.message || "Google provider failed."
+    };
+  }
+};
+
+export const searchEntityOnMap = async ({ query }) => {
+  const mode = normalizeProvider();
+
+  if (mode === "google") {
+    return searchEntityOnGoogleMap({ query });
+  }
+
+  if (mode === "osm") {
+    return searchEntityOnOsm({ query });
+  }
+
+  try {
+    return await searchEntityOnGoogleMap({ query });
+  } catch (error) {
+    const result = await searchEntityOnOsm({ query });
     return {
       ...result,
       fallbackUsed: true,

@@ -9,6 +9,7 @@ body,
 
 body {
   background: #1f1f1f;
+  overflow: hidden;
 }
 
 .rn-select {
@@ -20,9 +21,25 @@ body {
   padding: 10px;
 }
 
+.rn-model-select {
+  min-width: 180px;
+  max-width: 220px;
+  border: 1px solid #3a3a3a;
+  background: #242424;
+  color: #ececec;
+  border-radius: 14px;
+  padding: 8px 10px;
+}
+
 @media (max-width: 940px) {
+  body {
+    overflow: auto;
+  }
+
   #root > div {
     flex-direction: column !important;
+    height: auto !important;
+    overflow: auto !important;
   }
 
   #root > div > div:last-child {

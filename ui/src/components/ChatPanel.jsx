@@ -8,12 +8,32 @@ function ChatPanel({
   loading,
   onPromptChange,
   onSend,
-  onUseLocation
+  onUseLocation,
+  inputHint,
+  models,
+  selectedModel,
+  onModelChange,
+  isSidebarOpen,
+  onToggleSidebar,
+  isRecommendationOpen,
+  onToggleRecommendations
 }) {
   return (
     <View style={styles.chatPanel}>
       <View style={styles.panelHeader}>
-        <Text style={styles.panelHeaderText}>HeyPico Assistant</Text>
+        <View style={styles.chatHeaderRow}>
+          <View style={styles.chatHeaderLeft}>
+            <Pressable style={styles.headerChipButton} onPress={onToggleSidebar}>
+              <Text style={styles.headerChipButtonText}>{isSidebarOpen ? "Hide Menu" : "Show Menu"}</Text>
+            </Pressable>
+            <Text style={styles.panelHeaderText}>HeyPico Assistant</Text>
+          </View>
+          <Pressable style={styles.headerChipButton} onPress={onToggleRecommendations}>
+            <Text style={styles.headerChipButtonText}>
+              {isRecommendationOpen ? "Hide Recommendations" : "Show Recommendations"}
+            </Text>
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView style={styles.chatLog} contentContainerStyle={styles.chatContent}>
@@ -27,7 +47,22 @@ function ChatPanel({
         ))}
       </ScrollView>
 
-      <View style={styles.inputBar}>
+      <View style={styles.composerWrap}>
+        {inputHint ? <Text style={styles.inputHintText}>{inputHint}</Text> : null}
+        <View style={styles.inputBar}>
+        <select
+          className="rn-model-select"
+          value={selectedModel}
+          onChange={(event) => onModelChange(event.target.value)}
+          disabled={!models.length || loading}
+        >
+          {!models.length ? <option value="">No model</option> : null}
+          {models.map((model) => (
+            <option key={model} value={model}>
+              {model}
+            </option>
+          ))}
+        </select>
         <TextInput
           style={styles.promptInput}
           value={prompt}
@@ -42,6 +77,7 @@ function ChatPanel({
         <Pressable style={[styles.button, styles.locationButton]} onPress={onUseLocation}>
           <Text style={[styles.buttonText, styles.locationButtonText]}>Use Location</Text>
         </Pressable>
+        </View>
       </View>
     </View>
   );

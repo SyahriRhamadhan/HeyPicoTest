@@ -1,6 +1,15 @@
 import { ZodError } from "zod";
-import { searchPlaces } from "../services/mapProvider.js";
-import { askGeneralQuestion, extractIntent, planAssistantAction } from "../services/ollama.js";
+import { searchEntityOnMap, searchPlaces } from "../services/mapProvider.js";
+import {
+  askGeneralQuestionWithModel,
+  classifyMapQueryMode,
+  extractIntent,
+  extractMapEntity,
+  extractMapEntityFromPrompt,
+  isCurrentLocationIntent,
+  listLocalModels,
+  planAssistantAction
+} from "../services/ollama.js";
 import { promptSchema } from "../schemas/promptSchema.js";
 import { logger } from "../utils/logger.js";
 import {
@@ -19,7 +28,8 @@ const fallbackPlannerAction = (prompt) => ({
   action: isMapIntentPrompt(prompt) ? "map_search" : "chat",
   query: "",
   location: "",
-  placeType: "place"
+  placeType: "place",
+  mapEntity: ""
 });
 
 const sendError = (res, error) => {
@@ -40,8 +50,8 @@ const sendError = (res, error) => {
 
 export const handleMapQuery = async (req, res) => {
   try {
-    const { prompt, browserLocation } = promptSchema.parse(req.body);
-    const intent = await extractIntent(prompt);
+    const { prompt, browserLocation, model } = promptSchema.parse(req.body);
+    const intent = await extractIntent(prompt, model);
 
     if (needsClarification({ prompt, query: intent.query, browserLocation })) {
       return res.json({
@@ -125,13 +135,14 @@ const buildCurrentLocationMapResponse = ({ prompt, browserLocation }) => {
 
 export const handleAssistant = async (req, res) => {
   try {
-    const { prompt, browserLocation } = promptSchema.parse(req.body);
+    const { prompt, browserLocation, model } = promptSchema.parse(req.body);
     let plannedAction;
 
     try {
       plannedAction = await planAssistantAction({
         prompt,
-        hasBrowserLocation: Boolean(browserLocation)
+        hasBrowserLocation: Boolean(browserLocation),
+        model
       });
     } catch {
       logger.warn("Planner failed, using fallback action");
@@ -143,24 +154,88 @@ export const handleAssistant = async (req, res) => {
     }
 
     if (plannedAction.action === "current_location_map") {
+      const isSelfLocationPrompt = await isCurrentLocationIntent({ prompt, model });
+      if (!isSelfLocationPrompt) {
+        const entity = plannedAction.mapEntity || (await extractMapEntityFromPrompt({ prompt, model }));
+        plannedAction = {
+          ...plannedAction,
+          action: "map_search",
+          query: entity || prompt,
+          location: "",
+          mapEntity: entity
+        };
+      } else {
       return res.json(buildCurrentLocationMapResponse({ prompt, browserLocation }));
+      }
     }
 
     if (plannedAction.action === "chat") {
-      const answer = await askGeneralQuestion(prompt);
+      const answer = await askGeneralQuestionWithModel(prompt, model);
       return res.json({
         mode: "chat",
         prompt,
+        model: model || null,
         answer,
         assistantMessage: answer
       });
     }
 
-    const intent = await extractIntent(prompt);
+    if (plannedAction.action === "answer_and_map") {
+      const answer = await askGeneralQuestionWithModel(prompt, model);
+      const mapEntity =
+        plannedAction.mapEntity ||
+        (await extractMapEntity({
+          prompt,
+          answer,
+          model
+        }));
+
+      if (!mapEntity) {
+        return res.json({
+          mode: "chat",
+          prompt,
+          model: model || null,
+          answer,
+          assistantMessage: answer
+        });
+      }
+
+      const mapResult = await searchEntityOnMap({ query: mapEntity });
+      return res.json({
+        mode: "map",
+        prompt,
+        model: model || null,
+        provider: mapResult.provider,
+        requestQuery: mapResult.requestQuery,
+        totalResults: mapResult.totalResults,
+        places: mapResult.places,
+        assistantMessage: `${answer}\n\nI pinned ${mapEntity} on the map.`,
+        usedBrowserLocation: false
+      });
+    }
+
+    const intent = await extractIntent(prompt, model);
     const hasExplicitLocation = hasExplicitLocationInPrompt(prompt);
     const mapQuery = plannedAction.query || intent.query || prompt;
     const mapPlaceType = plannedAction.placeType || intent.placeType;
     const mapLocation = plannedAction.location || (hasExplicitLocation ? intent.location : "") || "";
+    const mapQueryMode = await classifyMapQueryMode({ prompt, query: mapQuery, model });
+
+    if (mapQueryMode === "entity") {
+      const entity = plannedAction.mapEntity || mapQuery;
+      const mapResult = await searchEntityOnMap({ query: entity });
+      return res.json({
+        mode: "map",
+        prompt,
+        model: model || null,
+        provider: mapResult.provider,
+        requestQuery: mapResult.requestQuery,
+        totalResults: mapResult.totalResults,
+        places: mapResult.places,
+        assistantMessage: `I pinned ${entity} on the map.`,
+        usedBrowserLocation: false
+      });
+    }
 
     if (!browserLocation && !mapLocation) {
       return res.json({
@@ -210,6 +285,7 @@ export const handleAssistant = async (req, res) => {
     return res.json({
       mode: "map",
       prompt,
+      model: model || null,
       intent,
       ...mapsResult,
       totalResults: limitedPlaces.length,
@@ -221,6 +297,15 @@ export const handleAssistant = async (req, res) => {
         "Use browser location to rank nearest places"
       ]
     });
+  } catch (error) {
+    return sendError(res, error);
+  }
+};
+
+export const handleModels = async (_req, res) => {
+  try {
+    const models = await listLocalModels();
+    return res.json({ models });
   } catch (error) {
     return sendError(res, error);
   }
