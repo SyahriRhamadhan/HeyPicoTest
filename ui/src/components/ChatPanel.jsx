@@ -1,4 +1,5 @@
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { FiMap, FiMenu, FiNavigation, FiSend, FiSidebar } from "react-icons/fi";
 import { styles } from "../styles/appStyles";
 import ChatBubble from "./ChatBubble";
 
@@ -23,15 +24,23 @@ function ChatPanel({
       <View style={styles.panelHeader}>
         <View style={styles.chatHeaderRow}>
           <View style={styles.chatHeaderLeft}>
-            <Pressable style={styles.headerChipButton} onPress={onToggleSidebar}>
-              <Text style={styles.headerChipButtonText}>{isSidebarOpen ? "Hide Menu" : "Show Menu"}</Text>
+            <Pressable
+              style={styles.iconButton}
+              onPress={onToggleSidebar}
+              title={isSidebarOpen ? "Hide menu" : "Show menu"}
+              accessibilityLabel={isSidebarOpen ? "Hide menu" : "Show menu"}
+            >
+              {isSidebarOpen ? <FiSidebar size={14} color="#d6d6d6" /> : <FiMenu size={14} color="#d6d6d6" />}
             </Pressable>
             <Text style={styles.panelHeaderText}>HeyPico Assistant</Text>
           </View>
-          <Pressable style={styles.headerChipButton} onPress={onToggleRecommendations}>
-            <Text style={styles.headerChipButtonText}>
-              {isRecommendationOpen ? "Hide Recommendations" : "Show Recommendations"}
-            </Text>
+          <Pressable
+            style={styles.iconButton}
+            onPress={onToggleRecommendations}
+            title={isRecommendationOpen ? "Hide recommendations" : "Show recommendations"}
+            accessibilityLabel={isRecommendationOpen ? "Hide recommendations" : "Show recommendations"}
+          >
+            <FiMap size={14} color="#d6d6d6" />
           </Pressable>
         </View>
       </View>
@@ -71,11 +80,22 @@ function ChatPanel({
           placeholder="Ask anything or search places..."
           placeholderTextColor="#8c99b8"
         />
-        <Pressable style={[styles.button, loading && styles.buttonDisabled]} onPress={onSend} disabled={loading}>
-          <Text style={styles.buttonText}>{loading ? "Sending..." : "Send"}</Text>
+        <Pressable
+          style={[styles.iconActionButton, loading && styles.buttonDisabled]}
+          onPress={onSend}
+          disabled={loading}
+          title="Send"
+          accessibilityLabel="Send"
+        >
+          <FiSend size={14} color="#111" />
         </Pressable>
-        <Pressable style={[styles.button, styles.locationButton]} onPress={onUseLocation}>
-          <Text style={[styles.buttonText, styles.locationButtonText]}>Use Location</Text>
+        <Pressable
+          style={[styles.iconActionButton, styles.locationButton]}
+          onPress={onUseLocation}
+          title="Use location"
+          accessibilityLabel="Use location"
+        >
+          <FiNavigation size={14} color="#fff" />
         </Pressable>
         </View>
       </View>

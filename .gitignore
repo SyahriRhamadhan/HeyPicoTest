@@ -7,3 +7,5 @@ coverage/
 dist/
 .vscode/
 .agents*
+
+/src/generated/prisma

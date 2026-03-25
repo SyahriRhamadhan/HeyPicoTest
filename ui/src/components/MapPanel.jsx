@@ -1,4 +1,5 @@
 import { Pressable, Text, View } from "react-native";
+import { FiX } from "react-icons/fi";
 import { styles } from "../styles/appStyles";
 import GoogleMapCanvas from "./GoogleMapCanvas";
 
@@ -9,8 +10,8 @@ function MapPanel({ places, selectedIndex, onSelect, onClose }) {
     <View style={[styles.panel, styles.mapPanel]}>
       <View style={styles.mapHeaderRow}>
         <Text style={styles.panelHeaderText}>Recommendations</Text>
-        <Pressable style={styles.headerChipButton} onPress={onClose}>
-          <Text style={styles.headerChipButtonText}>Hide</Text>
+        <Pressable style={styles.iconButton} onPress={onClose} title="Hide recommendations" accessibilityLabel="Hide recommendations">
+          <FiX size={14} color="#d6d6d6" />
         </Pressable>
       </View>
 

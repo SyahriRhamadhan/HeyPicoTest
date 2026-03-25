@@ -11,6 +11,11 @@
       "sourceType": "github",
       "computedHash": "47f9ab40a7ddedd69089da1390080735f6715356916d6fc43f525522887d7dfe"
     },
+    "ui-design-system": {
+      "source": "samhvw8/dot-claude",
+      "sourceType": "github",
+      "computedHash": "da805b478040b37f22d4ca74134bdad1f281f390f605fda2add000fec01df3c7"
+    },
     "vercel-react-best-practices": {
       "source": "vercel-labs/agent-skills",
       "sourceType": "github",

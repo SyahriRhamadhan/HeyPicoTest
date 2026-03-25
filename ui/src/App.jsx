@@ -3,6 +3,7 @@ import { View } from "react-native";
 import ChatPanel from "./components/ChatPanel";
 import MapPanel from "./components/MapPanel";
 import Sidebar from "./components/Sidebar";
+import SettingsModal from "./components/SettingsModal";
 import { styles } from "./styles/appStyles";
 
 const initialAssistant = {
@@ -10,12 +11,13 @@ const initialAssistant = {
   text: "Hi! I can answer normal questions and find places on map. Try: find coffee shops in Batam."
 };
 
-const createChatSession = () => ({
-  id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-  title: "New chat",
-  messages: [initialAssistant],
+const createChatSession = (session = {}) => ({
+  id: session.id || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  title: session.title || "New chat",
+  messages: session.messages || [initialAssistant],
   places: [],
-  selectedPlaceIndex: 0
+  selectedPlaceIndex: 0,
+  loaded: Boolean(session.messages)
 });
 
 const toChatTitle = (text) => {
@@ -42,7 +44,7 @@ const pickHighestModel = (models) => {
 };
 
 function App() {
-  const [chatSessions, setChatSessions] = useState([createChatSession()]);
+  const [chatSessions, setChatSessions] = useState([]);
   const [activeChatId, setActiveChatId] = useState("");
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
@@ -52,6 +54,7 @@ function App() {
   const [models, setModels] = useState([]);
   const [selectedModel, setSelectedModel] = useState("");
   const [inputHint, setInputHint] = useState("");
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   useEffect(() => {
     if (!activeChatId && chatSessions.length > 0) {
@@ -59,9 +62,33 @@ function App() {
     }
   }, [activeChatId, chatSessions]);
 
+  useEffect(() => {
+    const initChats = async () => {
+      try {
+        const response = await fetch("/api/chats");
+        const data = await response.json();
+        const chats = data?.chats || [];
+        if (chats.length > 0) {
+          setChatSessions(chats.map((chat) => createChatSession({ id: chat.id, title: chat.title, messages: null })));
+          setActiveChatId(chats[0].id);
+          return;
+        }
+      } catch {
+        // Fallback to local ephemeral chat if backend list fails.
+      }
+
+      const fallback = createChatSession();
+      setChatSessions([fallback]);
+      setActiveChatId(fallback.id);
+    };
+
+    initChats();
+  }, []);
+
   const activeChat = chatSessions.find((session) => session.id === activeChatId) || chatSessions[0];
 
   const updateActiveChat = (updater) => {
+    if (!activeChat) return;
     setChatSessions((current) =>
       current.map((session) => (session.id === activeChat.id ? updater(session) : session))
     );
@@ -90,6 +117,47 @@ function App() {
     }));
   };
 
+  const loadChatMessages = async (chatId) => {
+    try {
+      const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}/messages`);
+      const data = await response.json();
+      const messages = (data?.messages || []).map((message) => ({
+        role: message.role,
+        text: message.text,
+        meta: message.meta
+      }));
+      setChatSessions((current) =>
+        current.map((session) =>
+          session.id === chatId
+            ? {
+                ...session,
+                messages: messages.length > 0 ? messages : [initialAssistant],
+                loaded: true
+              }
+            : session
+        )
+      );
+    } catch {
+      setChatSessions((current) =>
+        current.map((session) =>
+          session.id === chatId
+            ? {
+                ...session,
+                messages: [initialAssistant],
+                loaded: true
+              }
+            : session
+        )
+      );
+    }
+  };
+
+  useEffect(() => {
+    if (!activeChat?.id) return;
+    if (activeChat.loaded) return;
+    loadChatMessages(activeChat.id);
+  }, [activeChat?.id, activeChat?.loaded]);
+
   useEffect(() => {
     const loadModels = async () => {
       try {
@@ -117,13 +185,21 @@ function App() {
     }
 
     setInputHint("");
+    const lastUserPrompt =
+      [...(activeChat?.messages || [])].reverse().find((message) => message.role === "user")?.text || "";
     addMessage({ role: "user", text });
     setPrompt("");
     setLoading(true);
 
     try {
       const body = { prompt: text };
+      if (activeChat?.id) body.chatId = activeChat.id;
       if (selectedModel) body.model = selectedModel;
+      if (lastUserPrompt) {
+        body.context = {
+          lastUserPrompt
+        };
+      }
       if (browserLocation) body.browserLocation = browserLocation;
 
       const response = await fetch("/api/assistant", {
@@ -205,10 +281,27 @@ function App() {
   const shouldShowRecommendations = isRecommendationOpen || (activeChat?.places || []).length > 0;
 
   const handleNewChat = () => {
-    const newSession = createChatSession();
-    setChatSessions((current) => [newSession, ...current]);
-    setActiveChatId(newSession.id);
-    setPrompt("");
+    const createRemoteChat = async () => {
+      try {
+        const response = await fetch("/api/chats", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: "New chat" })
+        });
+        const chat = await response.json();
+        const newSession = createChatSession({ id: chat.id, title: chat.title, messages: null });
+        setChatSessions((current) => [newSession, ...current]);
+        setActiveChatId(newSession.id);
+        setPrompt("");
+      } catch {
+        const newSession = createChatSession();
+        setChatSessions((current) => [newSession, ...current]);
+        setActiveChatId(newSession.id);
+        setPrompt("");
+      }
+    };
+
+    createRemoteChat();
   };
 
   const handleSelectChat = (chatId) => {
@@ -222,6 +315,44 @@ function App() {
     }));
   };
 
+  const handleClearCurrentMemory = async () => {
+    if (!activeChat?.id) return;
+    try {
+      await fetch("/api/memory/clear", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scope: "current",
+          chatId: activeChat.id
+        })
+      });
+    } finally {
+      setIsSettingsOpen(false);
+      const response = await fetch("/api/chats");
+      const data = await response.json();
+      const chats = data?.chats || [];
+      if (chats.length > 0) {
+        setChatSessions(chats.map((chat) => createChatSession({ id: chat.id, title: chat.title, messages: null })));
+        setActiveChatId(chats[0].id);
+      } else {
+        handleNewChat();
+      }
+    }
+  };
+
+  const handleClearAllMemory = async () => {
+    try {
+      await fetch("/api/memory/clear", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scope: "all" })
+      });
+    } finally {
+      setIsSettingsOpen(false);
+      handleNewChat();
+    }
+  };
+
   return (
     <View style={styles.layout}>
       <Sidebar
@@ -231,6 +362,7 @@ function App() {
         activeChatId={activeChat?.id}
         onSelectChat={handleSelectChat}
         onNewChat={handleNewChat}
+        onOpenSettings={() => setIsSettingsOpen(true)}
       />
       <ChatPanel
         messages={activeChat?.messages || [initialAssistant]}
@@ -254,6 +386,14 @@ function App() {
           selectedIndex={activeChat?.selectedPlaceIndex || 0}
           onSelect={handleSelectPlace}
           onClose={() => setIsRecommendationOpen(false)}
+        />
+      ) : null}
+      {isSettingsOpen ? (
+        <SettingsModal
+          onClose={() => setIsSettingsOpen(false)}
+          onClearCurrent={handleClearCurrentMemory}
+          onClearAll={handleClearAllMemory}
+          canClearCurrent={Boolean(activeChat?.id)}
         />
       ) : null}
     </View>

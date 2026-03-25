@@ -40,7 +40,9 @@ export const styles = StyleSheet.create({
     backgroundColor: "#202020",
     paddingHorizontal: 9,
     paddingVertical: 6,
-    borderRadius: 9
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center"
   },
   sidebarToggleText: {
     color: "#d6d6d6",
@@ -59,7 +61,11 @@ export const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 10,
     paddingHorizontal: 12,
-    backgroundColor: "#202020"
+    backgroundColor: "#202020",
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "center",
+    justifyContent: "flex-start"
   },
   newChatButtonText: {
     color: "#ececec",
@@ -67,6 +73,27 @@ export const styles = StyleSheet.create({
   },
   historyList: {
     gap: 4
+  },
+  sidebarFooter: {
+    marginTop: "auto",
+    paddingTop: 10
+  },
+  settingsButton: {
+    borderWidth: 1,
+    borderColor: "#3b3b3b",
+    borderRadius: 10,
+    backgroundColor: "#202020",
+    paddingVertical: 9,
+    paddingHorizontal: 10,
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  settingsButtonText: {
+    color: "#cfcfcf",
+    fontSize: 13,
+    fontWeight: "600"
   },
   historyItem: {
     backgroundColor: "#202020",
@@ -137,6 +164,16 @@ export const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 10
   },
+  iconButton: {
+    borderWidth: 1,
+    borderColor: "#3a3a3a",
+    backgroundColor: "#242424",
+    borderRadius: 999,
+    width: 30,
+    height: 30,
+    alignItems: "center",
+    justifyContent: "center"
+  },
   headerChipButtonText: {
     color: "#d6d6d6",
     fontSize: 12,
@@ -166,10 +203,13 @@ export const styles = StyleSheet.create({
     alignItems: "flex-start"
   },
   bubble: {
-    maxWidth: "80%",
+    maxWidth: "100%",
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderRadius: 18
+  },
+  bubbleStack: {
+    maxWidth: "80%"
   },
   userBubble: {
     backgroundColor: "#303030"
@@ -188,6 +228,26 @@ export const styles = StyleSheet.create({
     color: "#9f9f9f",
     fontSize: 12,
     marginTop: 8
+  },
+  messageActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 4
+  },
+  messageActionsUser: {
+    justifyContent: "flex-end"
+  },
+  messageActionsAssistant: {
+    justifyContent: "flex-start"
+  },
+  messageActionButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "transparent"
   },
   inputBar: {
     borderTopWidth: 1,
@@ -219,11 +279,13 @@ export const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 16
   },
-  button: {
+  iconActionButton: {
     backgroundColor: "#ececec",
-    borderRadius: 18,
-    paddingVertical: 9,
-    paddingHorizontal: 14
+    borderRadius: 999,
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center"
   },
   locationButton: {
     backgroundColor: "#10a37f"
@@ -231,13 +293,8 @@ export const styles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.6
   },
-  buttonText: {
-    color: "#111",
-    fontWeight: "700"
-  },
-  locationButtonText: {
-    color: "#ffffff"
-  },
+  buttonText: { color: "#111", fontWeight: "700" },
+  locationButtonText: { color: "#ffffff" },
   panelBody: {
     flex: 1,
     padding: 14,
@@ -283,5 +340,85 @@ export const styles = StyleSheet.create({
   mutedText: {
     color: "#9f9f9f",
     textAlign: "center"
+  },
+  modalOverlay: {
+    position: "fixed",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 50,
+    alignItems: "flex-start",
+    justifyContent: "flex-end"
+  },
+  modalBackdrop: {
+    position: "fixed",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: "rgba(0,0,0,0.45)"
+  },
+  modalCard: {
+    marginLeft: 12,
+    marginBottom: 12,
+    width: 300,
+    borderWidth: 1,
+    borderColor: "#3a3a3a",
+    borderRadius: 12,
+    backgroundColor: "#1d1d1d",
+    padding: 14,
+    gap: 10
+  },
+  modalTitle: {
+    color: "#f1f1f1",
+    fontSize: 16,
+    fontWeight: "700"
+  },
+  modalDescription: {
+    color: "#b8b8b8",
+    fontSize: 13
+  },
+  modalButton: {
+    borderWidth: 1,
+    borderColor: "#3a3a3a",
+    borderRadius: 10,
+    backgroundColor: "#242424",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  modalButtonRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8
+  },
+  modalButtonDisabled: {
+    opacity: 0.5
+  },
+  modalButtonText: {
+    color: "#ececec",
+    fontWeight: "600"
+  },
+  modalDangerButton: {
+    borderColor: "#5a2a2a",
+    backgroundColor: "#2b1717"
+  },
+  modalDangerButtonText: {
+    color: "#ffb4b4"
+  },
+  modalCloseButton: {
+    alignSelf: "flex-end",
+    width: 28,
+    height: 28,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#3a3a3a",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  modalCloseButtonText: {
+    color: "#bcbcbc"
   }
 });
