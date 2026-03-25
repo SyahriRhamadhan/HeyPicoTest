@@ -96,7 +96,7 @@ export const styles = StyleSheet.create({
     overflow: "hidden"
   },
   mapPanel: {
-    width: 360,
+    width: 460,
     height: "100vh",
     borderRadius: 0,
     borderTopWidth: 0,
@@ -122,7 +122,7 @@ export const styles = StyleSheet.create({
   },
   mapHeaderRow: {
     paddingVertical: 16,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderColor: "#2e2e2e",
     flexDirection: "row",
@@ -240,8 +240,8 @@ export const styles = StyleSheet.create({
   },
   panelBody: {
     flex: 1,
-    padding: 12,
-    gap: 10,
+    padding: 14,
+    gap: 12,
     overflow: "auto"
   },
   placeCard: {
@@ -268,7 +268,7 @@ export const styles = StyleSheet.create({
   },
   mapFrame: {
     flex: 1,
-    minHeight: 320,
+    minHeight: 460,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: "#353535",

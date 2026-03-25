@@ -48,8 +48,13 @@ function GoogleMapCanvas({ places, selectedIndex }) {
           mapRef.current = new maps.Map(containerRef.current, {
             center: { lat: 1.1, lng: 104.0 },
             zoom: 11,
-            mapTypeControl: false,
-            streetViewControl: false
+            mapTypeControl: true,
+            streetViewControl: true,
+            fullscreenControl: true,
+            zoomControl: true,
+            scaleControl: true,
+            rotateControl: true,
+            gestureHandling: "greedy"
           });
         }
       })

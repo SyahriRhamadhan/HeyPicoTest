@@ -24,6 +24,23 @@ const toChatTitle = (text) => {
   return trimmed.length > 28 ? `${trimmed.slice(0, 28)}...` : trimmed;
 };
 
+const modelRank = (name) => {
+  const value = String(name || "").toLowerCase();
+  const versionMatch = value.match(/(\d+(?:\.\d+)+)/);
+  const sizeMatch = value.match(/:(\d+(?:\.\d+)?)([bm])/);
+
+  const versionScore = versionMatch ? Number(versionMatch[1].replace(/\./g, "")) : 0;
+  const sizeValue = sizeMatch ? Number(sizeMatch[1]) : 0;
+  const sizeUnit = sizeMatch?.[2] === "b" ? 1 : 0;
+
+  return versionScore * 10_000 + sizeValue * 10 + sizeUnit;
+};
+
+const pickHighestModel = (models) => {
+  if (!models.length) return "";
+  return [...models].sort((a, b) => modelRank(b) - modelRank(a))[0];
+};
+
 function App() {
   const [chatSessions, setChatSessions] = useState([createChatSession()]);
   const [activeChatId, setActiveChatId] = useState("");
@@ -81,7 +98,7 @@ function App() {
         const availableModels = data?.models || [];
         setModels(availableModels);
         if (availableModels.length > 0) {
-          setSelectedModel(availableModels[0]);
+          setSelectedModel(pickHighestModel(availableModels));
         }
       } catch {
         setModels([]);
