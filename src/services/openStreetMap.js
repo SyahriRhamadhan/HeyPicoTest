@@ -1,10 +1,8 @@
 import axios from "axios";
 import { config } from "../config.js";
 
-const toMapsSearchUrl = (name, address) => {
-  const query = encodeURIComponent(`${name} ${address}`.trim());
-  return `https://www.openstreetmap.org/search?query=${query}`;
-};
+const toMapsSearchUrl = (lat, lng) =>
+  `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=18/${lat}/${lng}`;
 
 const toEmbedUrl = (lat, lng) =>
   `https://www.openstreetmap.org/export/embed.html?layer=mapnik&marker=${lat}%2C${lng}`;
@@ -158,7 +156,7 @@ export const searchPlacesOsm = async ({ query, location, placeType }) => {
           formattedAddress,
           rating: null,
           location: { lat, lng },
-          mapsUrl: toMapsSearchUrl(name, formattedAddress),
+          mapsUrl: toMapsSearchUrl(lat, lng),
           embedUrl: toEmbedUrl(lat, lng)
         };
       });
@@ -198,7 +196,7 @@ export const searchPlacesOsm = async ({ query, location, placeType }) => {
           formattedAddress,
           rating: null,
           location: { lat, lng },
-          mapsUrl: toMapsSearchUrl(name, formattedAddress),
+          mapsUrl: toMapsSearchUrl(lat, lng),
           embedUrl: toEmbedUrl(lat, lng)
         };
       });

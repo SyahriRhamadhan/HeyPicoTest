@@ -1,0 +1,303 @@
+<!-- <!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HeyPico Assistant</title>
+    <style>
+      :root {
+        --bg: #0f172a;
+        --panel: #111827;
+        --line: #2b364f;
+        --text: #e5e7eb;
+        --muted: #9ca3af;
+        --user: #1f3a8a;
+        --assistant: #1f2937;
+        --accent: #2563eb;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+      .layout {
+        width: min(980px, 96vw);
+        margin: 12px auto;
+        display: grid;
+        grid-template-columns: 1fr 360px;
+        gap: 12px;
+      }
+      .chat-panel,
+      .map-panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+      }
+      .chat-header,
+      .map-header {
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--line);
+        font-weight: 700;
+      }
+      .chat-log {
+        height: 68vh;
+        overflow-y: auto;
+        padding: 14px;
+        display: grid;
+        gap: 10px;
+      }
+      .bubble {
+        max-width: 88%;
+        padding: 10px 12px;
+        border-radius: 12px;
+        line-height: 1.45;
+        white-space: pre-wrap;
+      }
+      .bubble.user {
+        justify-self: end;
+        background: var(--user);
+      }
+      .bubble.assistant {
+        justify-self: start;
+        background: var(--assistant);
+      }
+      .bubble .meta {
+        margin-top: 6px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .input-bar {
+        border-top: 1px solid var(--line);
+        padding: 10px;
+        display: grid;
+        grid-template-columns: 1fr auto auto;
+        gap: 8px;
+      }
+      input,
+      select {
+        width: 100%;
+        border: 1px solid var(--line);
+        background: #0b1220;
+        color: var(--text);
+        border-radius: 8px;
+        padding: 10px;
+      }
+      button {
+        border: none;
+        border-radius: 8px;
+        background: var(--accent);
+        color: white;
+        padding: 10px 12px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      button.secondary {
+        background: #0e7a5f;
+      }
+      .map-body {
+        padding: 12px;
+        display: grid;
+        gap: 10px;
+      }
+      .place-card {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 10px;
+        background: #101828;
+      }
+      .place-card .addr {
+        margin-top: 5px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .place-card a {
+        color: #93c5fd;
+        font-size: 13px;
+      }
+      iframe {
+        width: 100%;
+        min-height: 360px;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+      }
+      @media (max-width: 940px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+        .chat-log {
+          height: 52vh;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <section class="chat-panel">
+        <div class="chat-header">HeyPico Assistant</div>
+        <div id="chatLog" class="chat-log"></div>
+        <div class="input-bar">
+          <input id="promptInput" type="text" value="find coffee shops in Batam" />
+          <button id="sendBtn">Send</button>
+          <button id="locBtn" class="secondary">Use Location</button>
+        </div>
+      </section>
+
+      <section class="map-panel">
+        <div class="map-header">Recommendations</div>
+        <div class="map-body">
+          <select id="placeSelect" disabled>
+            <option value="">No place selected</option>
+          </select>
+          <div id="placeCard" class="place-card">Send a place query to see details.</div>
+          <iframe id="mapFrame" src="" title="Map"></iframe>
+        </div>
+      </section>
+    </div>
+
+    <script>
+      const chatLog = document.getElementById("chatLog");
+      const promptInput = document.getElementById("promptInput");
+      const sendBtn = document.getElementById("sendBtn");
+      const locBtn = document.getElementById("locBtn");
+      const placeSelect = document.getElementById("placeSelect");
+      const placeCard = document.getElementById("placeCard");
+      const mapFrame = document.getElementById("mapFrame");
+
+      let browserLocation = null;
+      let currentPlaces = [];
+
+      const esc = (v) =>
+        String(v)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;");
+
+      const addBubble = (role, text, meta = "") => {
+        const el = document.createElement("div");
+        el.className = `bubble ${role}`;
+        el.innerHTML = `${esc(text)}${meta ? `<div class="meta">${esc(meta)}</div>` : ""}`;
+        chatLog.appendChild(el);
+        chatLog.scrollTop = chatLog.scrollHeight;
+      };
+
+      const renderPlaceDropdown = (places) => {
+        currentPlaces = places || [];
+        placeSelect.innerHTML = "";
+        if (!currentPlaces.length) {
+          placeSelect.disabled = true;
+          placeSelect.innerHTML = `<option value="">No places found</option>`;
+          placeCard.textContent = "No place details available.";
+          mapFrame.src = "";
+          return;
+        }
+        placeSelect.disabled = false;
+        currentPlaces.forEach((p, i) => {
+          const op = document.createElement("option");
+          op.value = String(i);
+          op.textContent = `${i + 1}. ${p.name}`;
+          placeSelect.appendChild(op);
+        });
+        showPlace(0);
+      };
+
+      const showPlace = (index) => {
+        const p = currentPlaces[index];
+        if (!p) return;
+        placeCard.innerHTML = `
+          <strong>${esc(p.name)}</strong>
+          <div class="addr">${esc(p.formattedAddress || "-")}</div>
+          <div style="margin-top:6px;"><a href="${p.mapsUrl}" target="_blank" rel="noreferrer">Open direction</a></div>
+        `;
+        mapFrame.src = p.embedUrl || "";
+      };
+
+      const sendPrompt = async () => {
+        const prompt = promptInput.value.trim();
+        if (!prompt) return;
+
+        addBubble("user", prompt);
+        sendBtn.disabled = true;
+        sendBtn.textContent = "Sending...";
+
+        try {
+          const payload = { prompt };
+          if (browserLocation) payload.browserLocation = browserLocation;
+
+          const res = await fetch("/api/assistant", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          const data = await res.json();
+
+          if (!res.ok) {
+            addBubble("assistant", `Error: ${data.message || data.error || "Request failed"}`);
+            return;
+          }
+
+          if (data.needsClarification) {
+            addBubble("assistant", data.assistantMessage || data.clarificationQuestion || "Need more context.");
+            renderPlaceDropdown([]);
+            return;
+          }
+
+          if (data.mode === "chat") {
+            addBubble("assistant", data.assistantMessage || data.answer || "(No answer)");
+            renderPlaceDropdown([]);
+            return;
+          }
+
+          const meta = `provider=${data.provider || "-"}, results=${data.totalResults || 0}`;
+          addBubble("assistant", data.assistantMessage || "Here are the results.", meta);
+          renderPlaceDropdown(data.places || []);
+        } catch (err) {
+          addBubble("assistant", `Network error: ${err.message}`);
+        } finally {
+          sendBtn.disabled = false;
+          sendBtn.textContent = "Send";
+        }
+      };
+
+      const enableLocation = () => {
+        if (!navigator.geolocation) {
+          addBubble("assistant", "Browser geolocation is not supported.");
+          return;
+        }
+        locBtn.disabled = true;
+        locBtn.textContent = "Locating...";
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            browserLocation = {
+              lat: Number(pos.coords.latitude),
+              lng: Number(pos.coords.longitude)
+            };
+            addBubble("assistant", "Location enabled. I can now rank places by nearest.");
+            locBtn.textContent = "Location Enabled";
+          },
+          (err) => {
+            addBubble("assistant", `Location error: ${err.message}`);
+            locBtn.disabled = false;
+            locBtn.textContent = "Use Location";
+          },
+          { enableHighAccuracy: true, timeout: 10000 }
+        );
+      };
+
+      sendBtn.addEventListener("click", sendPrompt);
+      locBtn.addEventListener("click", enableLocation);
+      promptInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") sendPrompt();
+      });
+      placeSelect.addEventListener("change", (e) => showPlace(Number(e.target.value)));
+
+      addBubble(
+        "assistant",
+        "Hi! I can answer normal questions and also find places on map. Try: find coffee shops in Batam."
+      );
+    </script>
+  </body>
+</html> -->

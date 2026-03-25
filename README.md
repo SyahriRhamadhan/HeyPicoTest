@@ -53,6 +53,28 @@ npm run start
 ```
 
 Server runs on `http://localhost:3001` by default.
+Web UI is available at `http://localhost:3001`.
+
+## React UI (Component-based)
+
+A React version of the UI is available in `ui/`.
+
+Run backend first:
+
+```bash
+npm run dev
+```
+
+Then run React UI:
+
+```bash
+cd ui
+npm install
+copy .env.example .env
+npm run dev
+```
+
+Open `http://localhost:5173` (Vite proxy already forwards `/api` to backend `:3001`).
 
 ## API
 

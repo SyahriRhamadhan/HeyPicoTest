@@ -3,9 +3,16 @@ import { z } from "zod";
 import { config } from "../config.js";
 
 const intentSchema = z.object({
-  query: z.string().min(1).optional(),
-  location: z.string().min(1).nullable().optional(),
-  placeType: z.string().min(1).nullable().optional()
+  query: z.string().optional(),
+  location: z.string().nullable().optional(),
+  placeType: z.string().nullable().optional()
+});
+
+const assistantActionSchema = z.object({
+  action: z.enum(["map_search", "current_location", "current_location_map", "chat"]),
+  query: z.string().nullable().optional(),
+  location: z.string().nullable().optional(),
+  placeType: z.string().nullable().optional()
 });
 
 const normalizeText = (value) => (typeof value === "string" ? value.trim() : "");
@@ -90,4 +97,47 @@ export const askGeneralQuestion = async (prompt) => {
   );
 
   return String(data?.response || "").trim();
+};
+
+export const planAssistantAction = async ({ prompt, hasBrowserLocation }) => {
+  const systemPrompt = `You are an assistant router. Return JSON only with keys:
+- action: one of "map_search" | "current_location" | "current_location_map" | "chat"
+- query: string or null
+- location: string or null
+- placeType: string or null
+
+Rules:
+1) Use "current_location" only when user asks for their own current location.
+2) Use "current_location_map" when user asks to mark/pin/show their current location on map.
+3) Use "map_search" when user asks to find places/directions/nearby locations.
+4) Use "chat" for general Q&A.
+5) Do not invent location. If location is not explicitly in prompt, set location to null.
+6) Keep query concise for map search.
+7) hasBrowserLocation=${hasBrowserLocation ? "true" : "false"} (context only).`;
+
+  const { data } = await axios.post(
+    `${config.ollamaBaseUrl}/api/generate`,
+    {
+      model: config.ollamaModel,
+      prompt: `${systemPrompt}\nUser prompt: "${prompt}"`,
+      stream: false,
+      options: {
+        temperature: 0
+      }
+    },
+    {
+      timeout: 30_000
+    }
+  );
+
+  const jsonString = extractJsonObject(data.response);
+  const parsed = JSON.parse(jsonString);
+  const route = assistantActionSchema.parse(parsed);
+
+  return {
+    action: route.action,
+    query: normalizeText(route.query),
+    location: normalizeText(route.location),
+    placeType: normalizeText(route.placeType) || "place"
+  };
 };

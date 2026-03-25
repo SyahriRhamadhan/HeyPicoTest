@@ -1,14 +1,18 @@
 import axios from "axios";
 import { config } from "../config.js";
 
-const toMapsSearchUrl = (name, address) => {
-  const query = encodeURIComponent(`${name} ${address}`.trim());
-  return `https://www.google.com/maps/search/?api=1&query=${query}`;
+const toMapsSearchUrl = ({ lat, lng, placeId }) => {
+  const query = encodeURIComponent(`${lat},${lng}`);
+  const placeIdParam = placeId ? `&query_place_id=${encodeURIComponent(placeId)}` : "";
+  return `https://www.google.com/maps/search/?api=1&query=${query}${placeIdParam}`;
 };
 
-const toEmbedUrl = (name, address) => {
-  const query = encodeURIComponent(`${name} ${address}`.trim());
-  return `https://www.google.com/maps?q=${query}&output=embed`;
+const toEmbedUrl = ({ lat, lng, placeId }) => {
+  if (placeId) {
+    return `https://www.google.com/maps/embed/v1/place?key=${encodeURIComponent(config.googleMapsApiKey)}&q=place_id:${encodeURIComponent(placeId)}`;
+  }
+
+  return `https://www.google.com/maps/embed/v1/place?key=${encodeURIComponent(config.googleMapsApiKey)}&q=${encodeURIComponent(`${lat},${lng}`)}`;
 };
 
 export const searchPlaces = async ({ query, location }) => {
@@ -33,17 +37,20 @@ export const searchPlaces = async ({ query, location }) => {
     throw new Error(`Google Maps API error: ${data.status}`);
   }
 
-  const places = (data.results ?? []).slice(0, 5).map((place) => ({
-    name: place.name,
-    formattedAddress: place.formatted_address,
-    rating: place.rating ?? null,
-    location: {
-      lat: place.geometry?.location?.lat ?? null,
-      lng: place.geometry?.location?.lng ?? null
-    },
-    mapsUrl: toMapsSearchUrl(place.name, place.formatted_address),
-    embedUrl: toEmbedUrl(place.name, place.formatted_address)
-  }));
+  const places = (data.results ?? []).slice(0, 5).map((place) => {
+    const lat = place.geometry?.location?.lat ?? null;
+    const lng = place.geometry?.location?.lng ?? null;
+    const placeId = place.place_id ?? null;
+
+    return {
+      name: place.name,
+      formattedAddress: place.formatted_address,
+      rating: place.rating ?? null,
+      location: { lat, lng },
+      mapsUrl: toMapsSearchUrl({ lat, lng, placeId }),
+      embedUrl: toEmbedUrl({ lat, lng, placeId })
+    };
+  });
 
   return {
     provider: "google",

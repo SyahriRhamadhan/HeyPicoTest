@@ -9,7 +9,7 @@ const normalizeProvider = () => {
   return knownProviders.has(mode) ? mode : "auto";
 };
 
-export const searchPlaces = async ({ query, location }) => {
+export const searchPlaces = async ({ query, location, placeType }) => {
   const mode = normalizeProvider();
 
   if (mode === "google") {
@@ -17,16 +17,17 @@ export const searchPlaces = async ({ query, location }) => {
   }
 
   if (mode === "osm") {
-    return searchPlacesOsm({ query, location });
+    return searchPlacesOsm({ query, location, placeType });
   }
 
   try {
     return await searchPlacesGoogle({ query, location });
-  } catch {
-    const result = await searchPlacesOsm({ query, location });
+  } catch (error) {
+    const result = await searchPlacesOsm({ query, location, placeType });
     return {
       ...result,
-      fallbackUsed: true
+      fallbackUsed: true,
+      fallbackReason: error?.message || "Google provider failed."
     };
   }
 };
