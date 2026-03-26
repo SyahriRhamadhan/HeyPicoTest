@@ -1,49 +1,82 @@
-# MapAi
+# MapAi - Local LLM + Maps Assistant
 
-Local LLM + Maps assistant with:
-- Node.js/Express backend
-- Ollama (local model)
-- Google Maps (primary) + OpenStreetMap fallback
-- React Native Web UI (Vite)
-- SQLite chat memory using Prisma
+Technical test implementation for an AI assistant that supports:
+- General Q&A chat
+- Place search and map recommendations
+- Current-location flow
+- Persistent chat history and memory
 
-## Features
-- Chat mode and map mode in one `/api/assistant` endpoint.
-- Entity-to-map behavior (example: `show singapore on map`).
-- Browser location support (`Use Location`).
-- Model selector from local Ollama models.
-- Persistent chat sessions and messages in SQLite.
-- Memory settings: clear current chat or clear all chat memory.
+Tech stack:
+- Backend: Node.js + Express
+- LLM: Ollama local models
+- Maps: Google Maps API (primary) + OpenStreetMap fallback
+- Frontend: React Native Web (Vite)
+- Database: SQLite + Prisma
 
-## Project Structure
+## 1) Architecture
+
+```txt
+┌──────────────────────────────────────────┐
+│ Frontend (ui/, Vite, RN Web)            │
+│ - Chat UI                               │
+│ - Recommendations panel + map           │
+│ - Calls /api/* via Vite proxy           │
+└───────────────────┬──────────────────────┘
+                    │ HTTP
+┌───────────────────▼──────────────────────┐
+│ Backend (src/, Express)                  │
+│ - /api/assistant (chat + map orchestration)
+│ - /api/map-query (map-only query)        │
+│ - chat sessions/messages API             │
+│ - memory clear API                       │
+└───────────┬─────────────────────┬────────┘
+            │                     │
+            │                     ├─ Google Maps API
+            │                     └─ OpenStreetMap API (fallback)
+            │
+            └─ Ollama (local model server)
+                     +
+               SQLite (Prisma)
+```
+
+## 2) Project Structure
+
 ```txt
 .
-├─ src/                    # backend source
-├─ prisma/                 # Prisma schema, sqlite db, seed script
+├─ src/                       # Express backend
+│  ├─ controllers/
+│  ├─ routes/
+│  ├─ services/
+│  └─ db/
+├─ prisma/
 │  ├─ schema.prisma
+│  ├─ dev.db
 │  └─ seed.js
-├─ ui/                     # React Native Web frontend (Vite)
+├─ ui/                        # React Native Web + Vite
+├─ docs/
+│  └─ postman/
+│     └─ MapAi.postman_collection.json
 ├─ .env.example
 └─ package.json
 ```
 
-## Prerequisites
+## 3) Prerequisites
+
 - Node.js 18+
-- Ollama running locally (`http://localhost:11434`)
-- Google Maps API key (recommended for accurate results)
+- npm
+- Ollama running on `http://localhost:11434`
+- (Recommended) valid Google Maps API key
 
-## Environment Setup
-1. Install backend dependencies:
-```bash
-npm install
-```
+## 4) Environment Variables
 
-2. Create `.env` from example:
+Create `.env` in project root:
+
 ```bash
 copy .env.example .env
 ```
 
-3. Update `.env` values as needed:
+Example values:
+
 ```env
 PORT=3001
 DATABASE_URL="file:./prisma/dev.db"
@@ -51,74 +84,95 @@ DEFAULT_LOCATION=Batam
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=qwen2.5-coder:7b
 MAP_PROVIDER=auto
-GOOGLE_MAPS_API_KEY=your_key_here
-OSM_USER_AGENT=mapai/1.0
+GOOGLE_MAPS_API_KEY=replace_with_your_google_maps_api_key
+OSM_USER_AGENT=heypico-test-map-app/1.0
 RATE_LIMIT_WINDOW_MS=60000
 RATE_LIMIT_MAX_REQUESTS=30
 MAX_RECOMMENDATIONS=4
 ```
 
-## Database (SQLite + Prisma)
-Generate Prisma client:
+Frontend env (`ui/.env`):
+
+```env
+VITE_GOOGLE_MAPS_API_KEY=replace_with_your_google_maps_api_key
+```
+
+## 5) Installation & Run
+
+### Backend
+
 ```bash
+npm install
 npm run prisma:generate
-```
-
-Optional migration command:
-```bash
-npm run prisma:migrate
-```
-
-Seed dummy English chats/messages:
-```bash
-npm run db:seed
-```
-
-Notes:
-- Seeder file: `prisma/seed.js`
-- Seeder resets existing chat data (deletes old chats/messages first).
-
-## Run Backend
-Development mode:
-```bash
 npm run dev
-```
-
-Production mode:
-```bash
-npm run start
 ```
 
 Backend URL:
 - `http://localhost:3001`
 
 Health check:
-- `GET /health`
+- `GET http://localhost:3001/health`
 
-## Run Frontend (React Native Web)
-In a second terminal:
+### Frontend
+
+Open second terminal:
+
 ```bash
 cd ui
 npm install
-copy .env.example .env
 npm run dev
 ```
 
 Frontend URL:
 - `http://localhost:5173`
 
-Vite proxy forwards `/api/*` requests to backend `:3001`.
+Note: Vite proxies `/api/*` to backend `:3001`.
 
-## Main API Endpoints
+## 6) Database & Seed
+
+Generate Prisma client:
+
+```bash
+npm run prisma:generate
+```
+
+Optional migration:
+
+```bash
+npm run prisma:migrate
+```
+
+Seed sample chats:
+
+```bash
+npm run db:seed
+```
+
+Seeder:
+- `prisma/seed.js`
+
+## 7) API Endpoints
+
+### Core
+- `GET /health`
 - `POST /api/assistant`
 - `POST /api/map-query`
 - `GET /api/models`
-- `GET /api/chats`
+
+### Chat session
 - `POST /api/chats`
+- `GET /api/chats?view=active|archived|all`
+- `PATCH /api/chats/:chatId` (rename/pin/archive)
+- `DELETE /api/chats/:chatId`
 - `GET /api/chats/:chatId/messages`
+
+### Memory
 - `POST /api/memory/clear`
 
-### Assistant request example
+## 8) Sample Requests
+
+### POST /api/assistant (map search)
+
 ```json
 {
   "chatId": "demo-chat-map-assistant",
@@ -127,40 +181,57 @@ Vite proxy forwards `/api/*` requests to backend `:3001`.
 }
 ```
 
-### Assistant map response example
+### POST /api/assistant (general chat)
+
 ```json
 {
-  "mode": "map",
-  "provider": "google",
-  "totalResults": 4,
-  "assistantMessage": "Hello! I found 4 recommendations...",
-  "places": []
+  "chatId": "demo-chat-general-qa",
+  "prompt": "Explain REST API in simple terms",
+  "model": "qwen2.5-coder:7b"
 }
 ```
 
-## Seed Data Included
-The seeder creates 3 demo chat sessions in English:
-- `Find coffee in Batam`
-- `REST API basics`
-- `Current location + map`
+### POST /api/memory/clear (current chat)
 
-## Troubleshooting
-- `ECONNREFUSED` in Vite proxy:
-  - Ensure backend is running on `http://localhost:3001`.
-- Map not visible in UI:
-  - Ensure `GOOGLE_MAPS_API_KEY` is valid.
-  - Restart backend after changing `.env`.
-- Local model not listed:
-  - Check Ollama is running and model exists (`ollama list`).
-- Empty API responses:
-  - Try explicit location in prompt, example: `find coffee shops in Batam`.
-
-## Useful Commands
-```bash
-npm run dev
-npm run start
-npm run prisma:generate
-npm run prisma:migrate
-npm run prisma:deploy
-npm run db:seed
+```json
+{
+  "scope": "current",
+  "chatId": "demo-chat-map-assistant"
+}
 ```
+
+## 9) Postman Collection
+
+Import this file into Postman:
+- `docs/postman/MapAi.postman_collection.json`
+
+Collection covers:
+- health check
+- model listing
+- chat create/list/update/delete
+- chat messages
+- assistant (chat/map/current location)
+- memory clear
+
+Default variable:
+- `baseUrl = http://localhost:3001`
+
+## 10) Troubleshooting
+
+- `ECONNREFUSED` in frontend:
+  - ensure backend is running on `:3001`
+- `Map is not visible`:
+  - check API key in root `.env` and `ui/.env`
+  - restart backend/frontend after env changes
+  - disable adblock/shield for localhost if Maps requests are blocked
+- `No local model found`:
+  - run `ollama list`
+  - ensure `OLLAMA_BASE_URL` reachable
+
+## 11) Security Notes
+
+- Never commit `.env` with real keys.
+- Rotate API key if it was exposed during testing.
+- Restrict Google Maps key by:
+  - HTTP referrer (`localhost:5173` for dev)
+  - API restrictions (Maps JS + Places/Geocoding as needed)
