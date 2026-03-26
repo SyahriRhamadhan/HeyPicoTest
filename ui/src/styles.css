@@ -155,10 +155,8 @@ body {
     padding: 6px !important;
   }
 
-  .rn-model-select {
-    min-width: 106px !important;
-    max-width: 130px !important;
-    font-size: 12px;
+  .chat-input-bar .rn-model-select {
+    display: none !important;
   }
 
   .chat-scroll-area {
@@ -185,10 +183,6 @@ body {
   .chat-input-bar {
     padding: 6px !important;
     gap: 4px !important;
-  }
-
-  .chat-input-bar .rn-model-select {
-    display: none !important;
   }
 
   .chat-prompt-input {

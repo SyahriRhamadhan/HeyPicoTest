@@ -8,6 +8,7 @@ function ChatPanel({
   messages,
   prompt,
   loading,
+  isMobile = false,
   onPromptChange,
   onSend,
   onUseLocation,
@@ -97,19 +98,21 @@ function ChatPanel({
       <View style={styles.composerWrap} className="chat-composer-wrap">
         {inputHint ? <Text style={styles.inputHintText}>{inputHint}</Text> : null}
         <View style={styles.inputBar} className="chat-input-bar">
-        <select
-          className="rn-model-select"
-          value={selectedModel}
-          onChange={(event) => onModelChange(event.target.value)}
-          disabled={!models.length || loading}
-        >
-          {!models.length ? <option value="">No model</option> : null}
-          {models.map((model) => (
-            <option key={model} value={model}>
-              {model}
-            </option>
-          ))}
-        </select>
+        {!isMobile ? (
+          <select
+            className="rn-model-select"
+            value={selectedModel}
+            onChange={(event) => onModelChange(event.target.value)}
+            disabled={!models.length || loading}
+          >
+            {!models.length ? <option value="">No model</option> : null}
+            {models.map((model) => (
+              <option key={model} value={model}>
+                {model}
+              </option>
+            ))}
+          </select>
+        ) : null}
         <TextInput
           style={styles.promptInput}
           className="chat-prompt-input"

@@ -556,6 +556,7 @@ function App() {
         messages={activeChat?.messages || [initialAssistant]}
         prompt={prompt}
         loading={loading}
+        isMobile={isMobile}
         onPromptChange={handlePromptChange}
         onSend={handleSend}
         onUseLocation={handleUseLocation}
