@@ -491,19 +491,22 @@ export const styles = StyleSheet.create({
     marginBottom: 12
   },
   sidebarTab: {
-    flex: 1,
+    width: "100%",
+    minHeight: 44,
     borderRadius: 10,
     backgroundColor: "#232323",
-    paddingVertical: 8,
-    alignItems: "center"
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center"
   },
   sidebarTabActive: {
     backgroundColor: "#333333"
   },
   sidebarTabText: {
-    color: "#aeb6c3",
-    fontSize: 12,
-    fontWeight: "600"
+    color: "#d7dde7",
+    fontSize: 13,
+    fontWeight: "700",
+    includeFontPadding: false
   },
   sidebarTabTextActive: {
     color: "#ffffff"

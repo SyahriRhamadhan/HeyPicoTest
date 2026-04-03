@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Text, TextInput, View } from "react-native";
+import { Platform, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { styles } from "../appStyles";
 import AnimatedPressable from "./AnimatedPressable";
@@ -14,7 +14,7 @@ function ComposerBar({ inputHint, prompt, onPromptChange, onSend, loading }) {
     setInputHeight(clampedHeight);
   };
 
-  const bottomOffset = Math.max(insets.bottom - 6, 2);
+  const bottomOffset = Platform.OS === "android" ? 2 : Math.max(insets.bottom - 6, 6);
 
   return (
     <View style={[styles.composerShell, { paddingBottom: bottomOffset }]}>

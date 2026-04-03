@@ -23,7 +23,8 @@ function ChatPanel({
   onToggleRecommendations,
   onEditLastUserMessage,
   onShowMapFromMessage,
-  onCopyMessage
+  onCopyMessage,
+  recommendationPanel = null
 }) {
   const lastUserMessageIndex = [...messages]
     .map((message, index) => ({ role: message.role, index }))
@@ -89,6 +90,8 @@ function ChatPanel({
             <ActivityIndicator color="#ffffff" />
           </View>
         ) : null}
+
+        {recommendationPanel}
 
         <View style={styles.bottomSpacer} />
       </ScrollView>

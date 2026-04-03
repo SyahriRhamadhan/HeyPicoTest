@@ -71,7 +71,7 @@ function RecommendationsPanel({
       ) : (
         <View style={styles.inlineMapDisabled}>
           <Text style={styles.subtleText}>
-            Inline native map is hidden by default. Tap Show Map if you want to test it.
+            Map sedang disembunyikan. Tekan Show Map untuk menampilkannya lagi.
           </Text>
         </View>
       )}

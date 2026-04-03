@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ScrollView, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { styles } from "../appStyles";
 import AnimatedPressable from "./AnimatedPressable";
 
@@ -62,20 +62,20 @@ function Sidebar({
         </AnimatedPressable>
 
         <View style={styles.sidebarTabs}>
-          <AnimatedPressable style={styles.pressableGrow} onPress={() => onChangeChatView?.("active")}>
+          <Pressable style={styles.pressableGrow} onPress={() => onChangeChatView?.("active")}>
             <View style={[styles.sidebarTab, chatView === "active" && styles.sidebarTabActive]}>
               <Text style={[styles.sidebarTabText, chatView === "active" && styles.sidebarTabTextActive]}>
                 Active
               </Text>
             </View>
-          </AnimatedPressable>
-          <AnimatedPressable style={styles.pressableGrow} onPress={() => onChangeChatView?.("archived")}>
+          </Pressable>
+          <Pressable style={styles.pressableGrow} onPress={() => onChangeChatView?.("archived")}>
             <View style={[styles.sidebarTab, chatView === "archived" && styles.sidebarTabActive]}>
               <Text style={[styles.sidebarTabText, chatView === "archived" && styles.sidebarTabTextActive]}>
                 Archived
               </Text>
             </View>
-          </AnimatedPressable>
+          </Pressable>
         </View>
 
         <ScrollView style={styles.sidebarScroll} contentContainerStyle={styles.sidebarList}>

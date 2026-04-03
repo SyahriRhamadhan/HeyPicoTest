@@ -60,7 +60,7 @@ const extractLatestMapState = (messages = []) => {
     const meta = message?.meta;
     if (!meta || typeof meta !== "object" || meta.type !== "map_result") continue;
 
-    const places = Array.isArray(meta.places) ? meta.places : [];
+    const places = normalizePlaces(Array.isArray(meta.places) ? meta.places : []);
     if (!places.length) continue;
 
     return {
@@ -159,10 +159,11 @@ export const useAppController = () => {
   };
 
   const setActivePlaces = (places, selectedPlaceIndex = 0) => {
+    const normalizedPlaces = normalizePlaces(places);
     updateActiveChat((session) => ({
       ...session,
-      places,
-      selectedPlaceIndex
+      places: normalizedPlaces,
+      selectedPlaceIndex: Number(selectedPlaceIndex || 0)
     }));
   };
 
@@ -367,7 +368,7 @@ export const useAppController = () => {
           results: Number(data.totalResults || 0),
           totalResults: Number(data.totalResults || 0),
           requestQuery: data.requestQuery || null,
-          places: data.places || [],
+          places: normalizePlaces(data.places || []),
           selectedPlaceIndex: 0
         }
       });
@@ -396,12 +397,27 @@ export const useAppController = () => {
   };
 
   const handleShowMapFromMessage = (meta) => {
-    if (!meta || typeof meta !== "object") return;
-    const places = Array.isArray(meta.places) ? meta.places : [];
-    if (places.length === 0) return;
+    if (!meta || typeof meta !== "object") {
+      appendLog("WARN", "Show in map ignored: message meta is missing or invalid.");
+      return;
+    }
+
+    appendLog(
+      "INFO",
+      `Show in map clicked. provider=${meta.provider || "-"}, results=${Number(meta.totalResults || 0)}`
+    );
+
+    const places = normalizePlaces(Array.isArray(meta.places) ? meta.places : []);
+    if (places.length === 0) {
+      appendLog("WARN", "Show in map failed: no valid coordinates found in message meta.");
+      return;
+    }
+
     const selectedIndex = Number(meta.selectedPlaceIndex || 0);
+    appendLog("INFO", `Show in map normalized ${places.length} places. selectedIndex=${selectedIndex}`);
     setActivePlaces(places, selectedIndex);
     setIsRecommendationOpen(true);
+    appendLog("INFO", "Recommendation panel opened from message action.");
   };
 
   const handleNewChat = async () => {
