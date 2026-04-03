@@ -1,19 +1,29 @@
 import { useEffect, useRef, useState } from "react";
-import { Text, View } from "react-native";
+import { Platform, Pressable, Text, View } from "react-native";
 import { styles } from "../styles/appStyles";
+import { openExternalUrl } from "../utils/platform";
+import { getRuntimeConfig } from "../utils/runtimeConfig";
 
-const GOOGLE_MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
 const GOOGLE_MAPS_CALLBACK = "__heypicoGoogleMapsReady";
+const isWeb = Platform.OS === "web";
+const GOOGLE_MAPS_KEY = getRuntimeConfig().googleMapsApiKey || "";
+
+const getGoogleMaps = () => globalThis.google?.maps;
 
 const loadGoogleMapsScript = (() => {
   let promise;
+
   return () => {
-    if (!GOOGLE_MAPS_KEY) {
-      return Promise.reject(new Error("Missing VITE_GOOGLE_MAPS_API_KEY"));
+    if (!isWeb) {
+      return Promise.reject(new Error("Google Maps JS is only available on web."));
     }
 
-    if (window.google?.maps) {
-      return Promise.resolve(window.google.maps);
+    if (!GOOGLE_MAPS_KEY) {
+      return Promise.reject(new Error("Missing Google Maps API key."));
+    }
+
+    if (getGoogleMaps()) {
+      return Promise.resolve(getGoogleMaps());
     }
 
     if (promise) return promise;
@@ -22,19 +32,20 @@ const loadGoogleMapsScript = (() => {
       const existingScript = document.getElementById("google-maps-script");
       if (existingScript) {
         const waitUntilReady = () => {
-          if (window.google?.maps?.Map) {
-            resolve(window.google.maps);
+          if (getGoogleMaps()?.Map) {
+            resolve(getGoogleMaps());
           } else {
             setTimeout(waitUntilReady, 30);
           }
         };
+
         waitUntilReady();
         return;
       }
 
-      window[GOOGLE_MAPS_CALLBACK] = () => {
-        if (window.google?.maps?.Map) {
-          resolve(window.google.maps);
+      globalThis[GOOGLE_MAPS_CALLBACK] = () => {
+        if (getGoogleMaps()?.Map) {
+          resolve(getGoogleMaps());
         } else {
           reject(new Error("Google Maps loaded but Map constructor is unavailable."));
         }
@@ -47,9 +58,7 @@ const loadGoogleMapsScript = (() => {
       )}&loading=async&v=weekly&callback=${GOOGLE_MAPS_CALLBACK}`;
       script.async = true;
       script.defer = true;
-      script.onerror = () => {
-        reject(new Error("Failed to load Google Maps script."));
-      };
+      script.onerror = () => reject(new Error("Failed to load Google Maps script."));
       document.head.appendChild(script);
     });
 
@@ -76,7 +85,7 @@ const extractLatLngFromMapsUrl = (mapsUrl) => {
       }
     }
   } catch {
-    // ignore URL parse errors
+    // Ignore URL parse errors.
   }
 
   const match = raw.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
@@ -91,6 +100,48 @@ const extractLatLngFromMapsUrl = (mapsUrl) => {
   return null;
 };
 
+const getSelectedPlace = (places, selectedIndex) => {
+  const selected = places[selectedIndex] || places[0] || null;
+  if (!selected) return null;
+
+  const fromLocation = {
+    lat: parseLatLng(selected?.location?.lat),
+    lng: parseLatLng(selected?.location?.lng)
+  };
+  const fromUrl = extractLatLngFromMapsUrl(selected?.mapsUrl);
+
+  return {
+    ...selected,
+    lat: fromLocation.lat ?? fromUrl?.lat ?? null,
+    lng: fromLocation.lng ?? fromUrl?.lng ?? null
+  };
+};
+
+function NativeMapFallback({ places, selectedIndex }) {
+  const selectedPlace = getSelectedPlace(places, selectedIndex);
+
+  if (!selectedPlace) {
+    return (
+      <View style={styles.mapFallback}>
+        <Text style={styles.mutedText}>Send a place query to see the map preview.</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.mapFallback}>
+      <Text style={styles.placeTitle}>{selectedPlace.name}</Text>
+      <Text style={styles.placeAddress}>{selectedPlace.formattedAddress || "-"}</Text>
+      <Text style={styles.mutedText}>
+        Native map adapter is not installed yet. Open the selected place in Google Maps from here.
+      </Text>
+      <Pressable style={styles.nativeMapButton} onPress={() => openExternalUrl(selectedPlace.mapsUrl)}>
+        <Text style={styles.nativeMapButtonText}>Open in Google Maps</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 function GoogleMapCanvas({ places, selectedIndex }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
@@ -101,11 +152,14 @@ function GoogleMapCanvas({ places, selectedIndex }) {
   const [mapReady, setMapReady] = useState(false);
 
   useEffect(() => {
+    if (!isWeb) return undefined;
+
     let active = true;
 
     loadGoogleMapsScript()
       .then((maps) => {
         if (!active) return;
+
         if (!mapRef.current && containerRef.current) {
           mapRef.current = new maps.Map(containerRef.current, {
             center: { lat: 1.1, lng: 104.0 },
@@ -133,9 +187,11 @@ function GoogleMapCanvas({ places, selectedIndex }) {
   }, []);
 
   useEffect(() => {
-    const maps = window.google?.maps;
+    if (!isWeb) return undefined;
+
+    const maps = getGoogleMaps();
     const map = mapRef.current;
-    if (!maps || !map || !mapReady) return;
+    if (!maps || !map || !mapReady) return undefined;
 
     markersRef.current.forEach((marker) => marker.setMap(null));
     markersRef.current = [];
@@ -171,6 +227,7 @@ function GoogleMapCanvas({ places, selectedIndex }) {
       if (!infoWindowRef.current) {
         infoWindowRef.current = new maps.InfoWindow();
       }
+
       const infoWindow = infoWindowRef.current;
 
       valid.forEach((item, markerIndex) => {
@@ -273,7 +330,11 @@ function GoogleMapCanvas({ places, selectedIndex }) {
         (item) =>
           new Promise((resolve) => {
             const address = String(item.formattedAddress || item.name || "").trim();
-            if (!address) return resolve(item);
+            if (!address) {
+              resolve(item);
+              return;
+            }
+
             geocoder.geocode({ address }, (results, status) => {
               if (status === "OK" && results?.[0]?.geometry?.location) {
                 const location = results[0].geometry.location;
@@ -284,6 +345,7 @@ function GoogleMapCanvas({ places, selectedIndex }) {
                 });
                 return;
               }
+
               resolve(item);
             });
           })
@@ -291,13 +353,16 @@ function GoogleMapCanvas({ places, selectedIndex }) {
     )
       .then((resolved) => {
         if (cancelled) return;
+
         const valid = resolved.filter(
           (item) => Number.isFinite(item.lat) && Number.isFinite(item.lng)
         );
+
         if (!valid.length) {
           setMapError("No valid coordinates available for this recommendation.");
           return;
         }
+
         renderMarkers(valid);
       })
       .catch(() => {
@@ -307,12 +372,16 @@ function GoogleMapCanvas({ places, selectedIndex }) {
     return () => {
       cancelled = true;
     };
-  }, [mapReady, places, selectedIndex]);
+  }, [mapReady, mapError, places, selectedIndex]);
+
+  if (!isWeb) {
+    return <NativeMapFallback places={places} selectedIndex={selectedIndex} />;
+  }
 
   if (!GOOGLE_MAPS_KEY) {
     return (
       <View style={styles.mapFallback}>
-        <Text style={styles.mutedText}>Set VITE_GOOGLE_MAPS_API_KEY in ui/.env to render Google Map.</Text>
+        <Text style={styles.mutedText}>Set a Google Maps API key to render the web map.</Text>
       </View>
     );
   }

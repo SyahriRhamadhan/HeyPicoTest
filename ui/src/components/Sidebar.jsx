@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Pressable, Text, TextInput, View } from "react-native";
-import { FiArchive, FiBookmark, FiEdit2, FiMoreHorizontal, FiPlus, FiSettings, FiTrash2, FiX } from "react-icons/fi";
+import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { styles } from "../styles/appStyles";
+import IconGlyph from "./IconGlyph";
 
 function Sidebar({
   isOpen,
@@ -42,27 +42,19 @@ function Sidebar({
   }
 
   return (
-    <View style={styles.sidebar} className="app-sidebar app-sidebar-open">
+    <View style={styles.sidebar}>
       <View style={styles.sidebarHeader}>
-        <Text style={styles.sidebarBrand} className="sidebar-brand-text">MapAi</Text>
-        <Pressable
-          style={styles.sidebarToggleButton}
-          onPress={onToggle}
-          title="Hide menu"
-          accessibilityLabel="Hide menu"
-        >
-          <FiX size={14} color="#d6d6d6" />
+        <Text style={styles.sidebarBrand}>MapAi</Text>
+        <Pressable style={styles.sidebarToggleButton} onPress={onToggle} title="Hide menu" accessibilityLabel="Hide menu">
+          <IconGlyph name="close" style={styles.iconGlyph} />
         </Pressable>
       </View>
-      <Pressable
-        style={styles.newChatButton}
-        onPress={onNewChat}
-        title="New chat"
-        accessibilityLabel="New chat"
-      >
-        <FiPlus size={14} color="#ececec" />
+
+      <Pressable style={styles.newChatButton} onPress={onNewChat} title="New chat" accessibilityLabel="New chat">
+        <IconGlyph name="new" style={styles.iconGlyphLight} />
         <Text style={styles.newChatButtonText}>New chat</Text>
       </Pressable>
+
       <View style={styles.historyViewTabs}>
         <Pressable
           style={[styles.historyViewTab, chatView === "active" && styles.historyViewTabActive]}
@@ -81,12 +73,14 @@ function Sidebar({
           </Text>
         </Pressable>
       </View>
-      <View style={styles.historyList}>
+
+      <ScrollView style={styles.historyScroll} contentContainerStyle={styles.historyList}>
         {sessions.length === 0 ? (
           <Text style={styles.historyEmptyText}>
             {chatView === "archived" ? "No archived chats." : "No chats yet."}
           </Text>
         ) : null}
+
         {sessions.map((session) => (
           <View key={session.id} style={styles.historyItemWrap}>
             {renameChatId === session.id ? (
@@ -121,7 +115,7 @@ function Sidebar({
                   <Text style={styles.historyItemText} numberOfLines={1}>
                     {session.title}
                   </Text>
-                  {session.pinned ? <FiBookmark size={12} color="#9dc1ff" /> : null}
+                  {session.pinned ? <IconGlyph name="bookmark" style={styles.iconGlyphSmallAccent} /> : null}
                 </Pressable>
                 <Pressable
                   style={styles.historyMenuButton}
@@ -129,7 +123,7 @@ function Sidebar({
                   title="Chat menu"
                   accessibilityLabel="Chat menu"
                 >
-                  <FiMoreHorizontal size={14} color="#aab3c0" />
+                  <IconGlyph name="more" style={styles.iconGlyphMuted} />
                 </Pressable>
               </View>
             )}
@@ -137,7 +131,7 @@ function Sidebar({
             {menuChatId === session.id ? (
               <View style={styles.historyMenuCard}>
                 <Pressable style={styles.historyMenuItem} onPress={() => openRename(session)}>
-                  <FiEdit2 size={13} color="#d8dee7" />
+                  <IconGlyph name="edit" style={styles.iconGlyphLight} />
                   <Text style={styles.historyMenuText}>Rename</Text>
                 </Pressable>
                 <Pressable
@@ -147,7 +141,7 @@ function Sidebar({
                     setMenuChatId("");
                   }}
                 >
-                  <FiBookmark size={13} color="#d8dee7" />
+                  <IconGlyph name="bookmark" style={styles.iconGlyphLight} />
                   <Text style={styles.historyMenuText}>{session.pinned ? "Unpin chat" : "Pin chat"}</Text>
                 </Pressable>
                 <Pressable
@@ -158,7 +152,7 @@ function Sidebar({
                     setMenuChatId("");
                   }}
                 >
-                  <FiArchive size={13} color="#d8dee7" />
+                  <IconGlyph name="archive" style={styles.iconGlyphLight} />
                   <Text style={styles.historyMenuText}>{session.archived ? "Unarchive" : "Archive"}</Text>
                 </Pressable>
                 <Pressable
@@ -168,14 +162,15 @@ function Sidebar({
                     setMenuChatId("");
                   }}
                 >
-                  <FiTrash2 size={13} color="#ff9d9d" />
+                  <IconGlyph name="trash" style={styles.iconGlyphDanger} />
                   <Text style={[styles.historyMenuText, styles.historyMenuTextDanger]}>Delete</Text>
                 </Pressable>
               </View>
             ) : null}
           </View>
         ))}
-      </View>
+      </ScrollView>
+
       <View style={styles.sidebarFooter}>
         <Pressable
           style={styles.settingsButton}
@@ -183,7 +178,7 @@ function Sidebar({
           title="Memory settings"
           accessibilityLabel="Memory settings"
         >
-          <FiSettings size={14} color="#cfcfcf" />
+          <IconGlyph name="settings" style={styles.iconGlyphLight} />
           <Text style={styles.settingsButtonText}>Settings</Text>
         </Pressable>
       </View>

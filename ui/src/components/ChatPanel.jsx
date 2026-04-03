@@ -1,8 +1,9 @@
 import { useEffect, useRef } from "react";
-import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
-import { FiMap, FiMenu, FiNavigation, FiSend, FiSettings, FiSidebar } from "react-icons/fi";
+import { Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { styles } from "../styles/appStyles";
 import ChatBubble from "./ChatBubble";
+import IconGlyph from "./IconGlyph";
+import OptionPicker from "./OptionPicker";
 
 function ChatPanel({
   messages,
@@ -25,6 +26,8 @@ function ChatPanel({
   onShowMapFromMessage
 }) {
   const scrollRef = useRef(null);
+  const isWeb = Platform.OS === "web";
+  const modelOptions = models.map((model) => ({ label: model, value: model }));
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -40,7 +43,7 @@ function ChatPanel({
     .pop();
 
   return (
-    <View style={styles.chatPanel} className="app-chat-panel">
+    <View style={styles.chatPanel}>
       <View style={styles.panelHeader}>
         <View style={styles.chatHeaderRow}>
           <View style={styles.chatHeaderLeft}>
@@ -50,18 +53,18 @@ function ChatPanel({
               title={isSidebarOpen ? "Hide menu" : "Show menu"}
               accessibilityLabel={isSidebarOpen ? "Hide menu" : "Show menu"}
             >
-              {isSidebarOpen ? <FiSidebar size={14} color="#d6d6d6" /> : <FiMenu size={14} color="#d6d6d6" />}
+              {isSidebarOpen ? (
+                <IconGlyph name="sidebar" style={styles.iconGlyph} />
+              ) : (
+                <IconGlyph name="menu" style={styles.iconGlyph} />
+              )}
             </Pressable>
             <Text style={styles.panelHeaderText}>MapAi</Text>
           </View>
+
           <View style={styles.chatHeaderRight}>
-            <Pressable
-              style={styles.iconButton}
-              onPress={onOpenSettings}
-              title="Open settings"
-              accessibilityLabel="Open settings"
-            >
-              <FiSettings size={14} color="#d6d6d6" />
+            <Pressable style={styles.iconButton} onPress={onOpenSettings} title="Open settings" accessibilityLabel="Open settings">
+              <IconGlyph name="settings" style={styles.iconGlyph} />
             </Pressable>
             <Pressable
               style={styles.iconButton}
@@ -69,7 +72,7 @@ function ChatPanel({
               title={isRecommendationOpen ? "Hide recommendations" : "Show recommendations"}
               accessibilityLabel={isRecommendationOpen ? "Hide recommendations" : "Show recommendations"}
             >
-              <FiMap size={14} color="#d6d6d6" />
+              <IconGlyph name="map" style={styles.iconGlyph} />
             </Pressable>
           </View>
         </View>
@@ -77,7 +80,6 @@ function ChatPanel({
 
       <ScrollView
         ref={scrollRef}
-        className="chat-scroll-area"
         style={styles.chatLog}
         contentContainerStyle={styles.chatContent}
         onContentSizeChange={() => scrollRef.current?.scrollToEnd?.({ animated: true })}
@@ -95,50 +97,48 @@ function ChatPanel({
         ))}
       </ScrollView>
 
-      <View style={styles.composerWrap} className="chat-composer-wrap">
+      <View style={styles.composerWrap}>
         {inputHint ? <Text style={styles.inputHintText}>{inputHint}</Text> : null}
-        <View style={styles.inputBar} className="chat-input-bar">
-        {!isMobile ? (
-          <select
-            className="rn-model-select"
-            value={selectedModel}
-            onChange={(event) => onModelChange(event.target.value)}
-            disabled={!models.length || loading}
+
+        <View style={styles.inputBar}>
+          {!isMobile ? (
+            <OptionPicker
+              value={selectedModel}
+              onChange={onModelChange}
+              options={modelOptions}
+              placeholder="No model"
+              disabled={!models.length || loading}
+              compact={isWeb}
+            />
+          ) : null}
+
+          <TextInput
+            style={styles.promptInput}
+            value={prompt}
+            onChangeText={onPromptChange}
+            onSubmitEditing={onSend}
+            placeholder="Ask anything or search places..."
+            placeholderTextColor="#8c99b8"
+          />
+
+          <Pressable
+            style={[styles.iconActionButton, loading && styles.buttonDisabled]}
+            onPress={onSend}
+            disabled={loading}
+            title="Send"
+            accessibilityLabel="Send"
           >
-            {!models.length ? <option value="">No model</option> : null}
-            {models.map((model) => (
-              <option key={model} value={model}>
-                {model}
-              </option>
-            ))}
-          </select>
-        ) : null}
-        <TextInput
-          style={styles.promptInput}
-          className="chat-prompt-input"
-          value={prompt}
-          onChangeText={onPromptChange}
-          onSubmitEditing={onSend}
-          placeholder="Ask anything or search places..."
-          placeholderTextColor="#8c99b8"
-        />
-        <Pressable
-          style={[styles.iconActionButton, loading && styles.buttonDisabled]}
-          onPress={onSend}
-          disabled={loading}
-          title="Send"
-          accessibilityLabel="Send"
-        >
-          {loading ? <Text style={styles.buttonText}>...</Text> : <FiSend size={14} color="#111" />}
-        </Pressable>
-        <Pressable
-          style={[styles.iconActionButton, styles.locationButton]}
-          onPress={onUseLocation}
-          title="Use location"
-          accessibilityLabel="Use location"
-        >
-          <FiNavigation size={14} color="#fff" />
-        </Pressable>
+            {loading ? <Text style={styles.buttonText}>...</Text> : <IconGlyph name="send" style={styles.iconGlyphDark} />}
+          </Pressable>
+
+          <Pressable
+            style={[styles.iconActionButton, styles.locationButton]}
+            onPress={onUseLocation}
+            title="Use location"
+            accessibilityLabel="Use location"
+          >
+            <IconGlyph name="navigation" style={styles.iconGlyphLight} />
+          </Pressable>
         </View>
       </View>
     </View>

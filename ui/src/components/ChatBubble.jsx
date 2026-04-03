@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
-import { FiCheck, FiCopy, FiEdit2 } from "react-icons/fi";
 import { styles } from "../styles/appStyles";
+import IconGlyph from "./IconGlyph";
+import { copyText } from "../utils/platform";
 
 const formatMeta = (meta) => {
   if (!meta) return "";
@@ -37,11 +38,17 @@ function ChatBubble({ role, text, meta, canEdit = false, onEdit, onShowInMap }) 
   const isUser = role === "user";
   const [copied, setCopied] = useState(false);
   const metaText = formatMeta(meta);
-  const canShowInMap = !isUser && meta && typeof meta === "object" && Array.isArray(meta.places) && meta.places.length > 0;
+  const canShowInMap =
+    !isUser && meta && typeof meta === "object" && Array.isArray(meta.places) && meta.places.length > 0;
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(String(text || ""));
+      const ok = await copyText(text);
+      if (!ok) {
+        setCopied(false);
+        return;
+      }
+
       setCopied(true);
       setTimeout(() => setCopied(false), 1200);
     } catch {
@@ -56,6 +63,7 @@ function ChatBubble({ role, text, meta, canEdit = false, onEdit, onShowInMap }) 
           <Text style={styles.bubbleText}>{text}</Text>
           {metaText ? <Text style={styles.bubbleMeta}>{metaText}</Text> : null}
         </View>
+
         <View style={[styles.messageActions, isUser ? styles.messageActionsUser : styles.messageActionsAssistant]}>
           {canShowInMap ? (
             <Pressable
@@ -67,14 +75,20 @@ function ChatBubble({ role, text, meta, canEdit = false, onEdit, onShowInMap }) 
               <Text style={styles.messageMapActionText}>Show in map</Text>
             </Pressable>
           ) : null}
+
           <Pressable
             style={styles.messageActionButton}
             onPress={handleCopy}
             title={copied ? "Copied" : "Copy message"}
             accessibilityLabel="Copy message"
           >
-            {copied ? <FiCheck size={13} color="#a7f3d0" /> : <FiCopy size={13} color="#b9c2d0" />}
+            {copied ? (
+              <IconGlyph name="check" style={styles.iconGlyphSuccess} />
+            ) : (
+              <IconGlyph name="copy" style={styles.iconGlyphMuted} />
+            )}
           </Pressable>
+
           {isUser && canEdit ? (
             <Pressable
               style={styles.messageActionButton}
@@ -82,7 +96,7 @@ function ChatBubble({ role, text, meta, canEdit = false, onEdit, onShowInMap }) 
               accessibilityLabel="Edit last user message"
               onPress={() => onEdit?.(text)}
             >
-              <FiEdit2 size={13} color="#b9c2d0" />
+              <IconGlyph name="edit" style={styles.iconGlyphMuted} />
             </Pressable>
           ) : null}
         </View>

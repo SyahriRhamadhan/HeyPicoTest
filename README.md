@@ -95,7 +95,13 @@ Frontend env (`ui/.env`):
 
 ```env
 VITE_GOOGLE_MAPS_API_KEY=replace_with_your_google_maps_api_key
+VITE_API_BASE_URL=
 ```
+
+Notes:
+- Leave `VITE_API_BASE_URL` empty in local web dev so Vite can proxy `/api/*` to `http://localhost:3001`.
+- Set `VITE_API_BASE_URL=http://YOUR-LAN-IP:3001` when the frontend is opened from another device on the same network.
+- The shared UI code also reads `EXPO_PUBLIC_API_BASE_URL` and `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` for a future Expo/mobile shell.
 
 ## 5) Installation & Run
 
@@ -126,7 +132,39 @@ npm run dev
 Frontend URL:
 - `http://localhost:5173`
 
-Note: Vite proxies `/api/*` to backend `:3001`.
+Note:
+- Web dev uses the Vite proxy for `/api/*` to backend `:3001`.
+- For mobile/native builds, point the frontend to your backend with `API_BASE_URL`, for example `http://192.168.1.10:3001`.
+
+### Android Native (Expo)
+
+Native Android app lives in `mobile/`.
+
+Setup:
+
+```bash
+cd mobile
+copy .env.example .env
+```
+
+Set `EXPO_PUBLIC_API_BASE_URL` in `mobile/.env` to your laptop LAN address, for example:
+
+```env
+EXPO_PUBLIC_API_BASE_URL=http://192.168.1.10:3001
+```
+
+Run:
+
+```bash
+cd mobile
+npm install
+npm run android
+```
+
+Notes:
+- Phone/emulator must reach the backend over LAN, not `localhost`.
+- Android app uses native location permission and native map markers.
+- A valid APK build still requires Android SDK/Gradle on the machine or a remote EAS build.
 
 ## 6) Database & Seed
 
@@ -224,6 +262,11 @@ Default variable:
   - check API key in root `.env` and `ui/.env`
   - restart backend/frontend after env changes
   - disable adblock/shield for localhost if Maps requests are blocked
+- `Frontend works on laptop but not on phone`:
+  - set frontend API base URL to `http://YOUR-LAN-IP:3001`
+  - ensure phone and laptop are on the same Wi-Fi
+  - ensure Windows firewall allows inbound access to port `3001`
+  - ensure backend binds to a reachable interface, not only `localhost`
 - `No local model found`:
   - run `ollama list`
   - ensure `OLLAMA_BASE_URL` reachable

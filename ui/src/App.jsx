@@ -5,12 +5,19 @@ import MapPanel from "./components/MapPanel";
 import Sidebar from "./components/Sidebar";
 import SettingsModal from "./components/SettingsModal";
 import { styles } from "./styles/appStyles";
+import { buildApiUrl } from "./utils/runtimeConfig";
+import {
+  getIsCompactLayout,
+  getStoredLastActiveChatId,
+  requestCurrentLocation,
+  setStoredLastActiveChatId,
+  subscribeToViewportChange
+} from "./utils/platform";
 
 const initialAssistant = {
   role: "assistant",
   text: "Hi! I can answer normal questions and find places on map. Try: find coffee shops in Batam."
 };
-const LAST_ACTIVE_CHAT_KEY = "mapai_last_active_chat_id";
 
 const createChatSession = (session = {}) => ({
   id: session.id || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -48,6 +55,7 @@ const pickHighestModel = (models) => {
 
 const normalizeMessageMeta = (meta) => {
   if (!meta) return undefined;
+
   if (typeof meta === "string") {
     try {
       const parsed = JSON.parse(meta);
@@ -55,14 +63,12 @@ const normalizeMessageMeta = (meta) => {
     } catch {
       return meta;
     }
+
     return meta;
   }
+
   if (typeof meta === "number" || typeof meta === "boolean") return String(meta);
-
-  if (typeof meta === "object") {
-    return meta;
-  }
-
+  if (typeof meta === "object") return meta;
   return undefined;
 };
 
@@ -70,13 +76,17 @@ const extractLatestMapState = (messages = []) => {
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const message = messages[i];
     const meta = message?.meta;
-    if (!meta || typeof meta !== "object") continue;
-    if (meta.type !== "map_result") continue;
+    if (!meta || typeof meta !== "object" || meta.type !== "map_result") continue;
+
     const places = Array.isArray(meta.places) ? meta.places : [];
     if (places.length === 0) continue;
-    const selectedPlaceIndex = Number(meta.selectedPlaceIndex || 0);
-    return { places, selectedPlaceIndex };
+
+    return {
+      places,
+      selectedPlaceIndex: Number(meta.selectedPlaceIndex || 0)
+    };
   }
+
   return { places: [], selectedPlaceIndex: 0 };
 };
 
@@ -97,16 +107,29 @@ function App() {
 
   const refreshChatSessions = async (preferredChatId = "", view = chatView) => {
     const normalizedView = view === "archived" ? "archived" : "active";
-    const response = await fetch(`/api/chats?view=${encodeURIComponent(normalizedView)}`);
+    const response = await fetch(buildApiUrl(`/api/chats?view=${encodeURIComponent(normalizedView)}`));
     const data = await response.json();
     const chats = data?.chats || [];
+
     if (chats.length > 0) {
-      setChatSessions(chats.map((chat) => createChatSession({ id: chat.id, title: chat.title, pinned: chat.pinned, archived: chat.archived, messages: null })));
-      const savedLastActiveId = localStorage.getItem(LAST_ACTIVE_CHAT_KEY) || "";
+      setChatSessions(
+        chats.map((chat) =>
+          createChatSession({
+            id: chat.id,
+            title: chat.title,
+            pinned: chat.pinned,
+            archived: chat.archived,
+            messages: null
+          })
+        )
+      );
+
+      const savedLastActiveId = getStoredLastActiveChatId() || "";
       const nextActiveId =
         (preferredChatId && chats.some((chat) => chat.id === preferredChatId) && preferredChatId) ||
         (savedLastActiveId && chats.some((chat) => chat.id === savedLastActiveId) && savedLastActiveId) ||
         chats[0].id;
+
       setActiveChatId(nextActiveId);
       return;
     }
@@ -123,7 +146,7 @@ function App() {
 
   useEffect(() => {
     if (!activeChatId) return;
-    localStorage.setItem(LAST_ACTIVE_CHAT_KEY, activeChatId);
+    setStoredLastActiveChatId(activeChatId);
   }, [activeChatId]);
 
   useEffect(() => {
@@ -132,7 +155,7 @@ function App() {
         await refreshChatSessions("", chatView);
         return;
       } catch {
-        // Fallback to local ephemeral chat if backend list fails.
+        // Fall back to a local ephemeral chat when the backend is unavailable.
       }
 
       if (chatView === "active") {
@@ -149,23 +172,22 @@ function App() {
   }, [chatView]);
 
   useEffect(() => {
-    const handleResize = () => {
-      const mobile = window.innerWidth <= 940;
+    const applyLayoutMode = (mobile) => {
       setIsMobile(mobile);
       if (mobile) {
         setIsSidebarOpen(false);
       }
     };
 
-    handleResize();
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+    applyLayoutMode(getIsCompactLayout());
+    return subscribeToViewportChange(applyLayoutMode);
   }, []);
 
   const activeChat = chatSessions.find((session) => session.id === activeChatId) || chatSessions[0];
 
   const updateActiveChat = (updater) => {
     if (!activeChat) return;
+
     setChatSessions((current) =>
       current.map((session) => (session.id === activeChat.id ? updater(session) : session))
     );
@@ -196,7 +218,7 @@ function App() {
 
   const loadChatMessages = async (chatId) => {
     try {
-      const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}/messages`);
+      const response = await fetch(buildApiUrl(`/api/chats/${encodeURIComponent(chatId)}/messages`));
       const data = await response.json();
       const messages = (data?.messages || []).map((message) => ({
         role: message.role,
@@ -204,6 +226,7 @@ function App() {
         meta: normalizeMessageMeta(message.meta)
       }));
       const restoredMapState = extractLatestMapState(messages);
+
       setChatSessions((current) =>
         current.map((session) =>
           session.id === chatId
@@ -233,18 +256,18 @@ function App() {
   };
 
   useEffect(() => {
-    if (!activeChat?.id) return;
-    if (activeChat.loaded) return;
+    if (!activeChat?.id || activeChat.loaded) return;
     loadChatMessages(activeChat.id);
   }, [activeChat?.id, activeChat?.loaded]);
 
   useEffect(() => {
     const loadModels = async () => {
       try {
-        const response = await fetch("/api/models");
+        const response = await fetch(buildApiUrl("/api/models"));
         const data = await response.json();
         const availableModels = data?.models || [];
         setModels(availableModels);
+
         if (availableModels.length > 0) {
           setSelectedModel(pickHighestModel(availableModels));
         }
@@ -259,6 +282,7 @@ function App() {
   const handleSend = async () => {
     const text = prompt.trim();
     if (!text || loading) return;
+
     if (text.length < 5) {
       setInputHint("Type at least 5 characters.");
       return;
@@ -267,6 +291,7 @@ function App() {
     setInputHint("");
     const lastUserPrompt =
       [...(activeChat?.messages || [])].reverse().find((message) => message.role === "user")?.text || "";
+
     addMessage({ role: "user", text });
     setPrompt("");
     setLoading(true);
@@ -275,14 +300,10 @@ function App() {
       const body = { prompt: text };
       if (activeChat?.id) body.chatId = activeChat.id;
       if (selectedModel) body.model = selectedModel;
-      if (lastUserPrompt) {
-        body.context = {
-          lastUserPrompt
-        };
-      }
+      if (lastUserPrompt) body.context = { lastUserPrompt };
       if (browserLocation) body.browserLocation = browserLocation;
 
-      const response = await fetch("/api/assistant", {
+      const response = await fetch(buildApiUrl("/api/assistant"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body)
@@ -322,6 +343,7 @@ function App() {
           selectedPlaceIndex: 0
         }
       });
+
       setActivePlaces(data.places || [], 0);
       if ((data.places || []).length > 0) {
         setIsRecommendationOpen(true);
@@ -339,24 +361,17 @@ function App() {
       return;
     }
 
-    if (!navigator.geolocation) {
-      addMessage({ role: "assistant", text: "Browser geolocation is not supported." });
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setBrowserLocation({
-          lat: Number(position.coords.latitude),
-          lng: Number(position.coords.longitude)
+    requestCurrentLocation()
+      .then((location) => {
+        setBrowserLocation(location);
+        addMessage({
+          role: "assistant",
+          text: "Location enabled. I will rank places by nearest when available."
         });
-        addMessage({ role: "assistant", text: "Location enabled. I will rank places by nearest when available." });
-      },
-      (error) => {
+      })
+      .catch((error) => {
         addMessage({ role: "assistant", text: `Unable to get location: ${error.message}` });
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
+      });
   };
 
   const handlePromptChange = (value) => {
@@ -373,25 +388,32 @@ function App() {
 
   const handleShowMapFromMessage = (meta) => {
     if (!meta || typeof meta !== "object") return;
+
     const places = Array.isArray(meta.places) ? meta.places : [];
     if (places.length === 0) return;
+
     const selectedIndex = Number(meta.selectedPlaceIndex || 0);
     setActivePlaces(places, selectedIndex);
     setIsRecommendationOpen(true);
   };
 
-  const shouldShowRecommendations = isRecommendationOpen;
-
   const handleNewChat = () => {
     const createRemoteChat = async () => {
       try {
-        const response = await fetch("/api/chats", {
+        const response = await fetch(buildApiUrl("/api/chats"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ title: "New chat" })
         });
         const chat = await response.json();
-        const newSession = createChatSession({ id: chat.id, title: chat.title, pinned: chat.pinned, archived: chat.archived, messages: null });
+        const newSession = createChatSession({
+          id: chat.id,
+          title: chat.title,
+          pinned: chat.pinned,
+          archived: chat.archived,
+          messages: null
+        });
+
         if (chatView !== "active") {
           setChatView("active");
           await refreshChatSessions(chat.id, "active");
@@ -399,6 +421,7 @@ function App() {
           setChatSessions((current) => [newSession, ...current]);
           setActiveChatId(newSession.id);
         }
+
         setPrompt("");
         if (isMobile) setIsSidebarOpen(false);
       } catch {
@@ -406,6 +429,7 @@ function App() {
         if (chatView !== "active") {
           setChatView("active");
         }
+
         setChatSessions((current) => [newSession, ...current]);
         setActiveChatId(newSession.id);
         setPrompt("");
@@ -423,51 +447,51 @@ function App() {
 
   const handleRenameChat = async (chatId, title) => {
     try {
-      await fetch(`/api/chats/${encodeURIComponent(chatId)}`, {
+      await fetch(buildApiUrl(`/api/chats/${encodeURIComponent(chatId)}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title })
       });
       await refreshChatSessions(activeChat?.id || chatId, chatView);
     } catch {
-      // no-op
+      // No-op.
     }
   };
 
   const handlePinChat = async (chatId, pinned) => {
     try {
-      await fetch(`/api/chats/${encodeURIComponent(chatId)}`, {
+      await fetch(buildApiUrl(`/api/chats/${encodeURIComponent(chatId)}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pinned })
       });
       await refreshChatSessions(activeChat?.id || chatId, chatView);
     } catch {
-      // no-op
+      // No-op.
     }
   };
 
   const handleArchiveChat = async (chatId, archived = true) => {
     try {
-      await fetch(`/api/chats/${encodeURIComponent(chatId)}`, {
+      await fetch(buildApiUrl(`/api/chats/${encodeURIComponent(chatId)}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ archived })
       });
       await refreshChatSessions(activeChat?.id === chatId ? "" : activeChat?.id || "", chatView);
     } catch {
-      // no-op
+      // No-op.
     }
   };
 
   const handleDeleteChat = async (chatId) => {
     try {
-      await fetch(`/api/chats/${encodeURIComponent(chatId)}`, {
+      await fetch(buildApiUrl(`/api/chats/${encodeURIComponent(chatId)}`), {
         method: "DELETE"
       });
       await refreshChatSessions(activeChat?.id === chatId ? "" : activeChat?.id || "", chatView);
     } catch {
-      // no-op
+      // No-op.
     }
   };
 
@@ -478,10 +502,40 @@ function App() {
     }));
   };
 
+  const reloadChatsAfterClear = async () => {
+    const response = await fetch(buildApiUrl(`/api/chats?view=${encodeURIComponent(chatView)}`));
+    const data = await response.json();
+    const chats = data?.chats || [];
+
+    if (chats.length > 0) {
+      setChatSessions(
+        chats.map((chat) =>
+          createChatSession({
+            id: chat.id,
+            title: chat.title,
+            pinned: chat.pinned,
+            archived: chat.archived,
+            messages: null
+          })
+        )
+      );
+      setActiveChatId(chats[0].id);
+      return;
+    }
+
+    if (chatView === "active") {
+      handleNewChat();
+    } else {
+      setChatSessions([]);
+      setActiveChatId("");
+    }
+  };
+
   const handleClearCurrentMemory = async () => {
     if (!activeChat?.id) return;
+
     try {
-      await fetch("/api/memory/clear", {
+      await fetch(buildApiUrl("/api/memory/clear"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -491,36 +545,13 @@ function App() {
       });
     } finally {
       setIsSettingsOpen(false);
-      const response = await fetch(`/api/chats?view=${encodeURIComponent(chatView)}`);
-      const data = await response.json();
-      const chats = data?.chats || [];
-      if (chats.length > 0) {
-        setChatSessions(
-          chats.map((chat) =>
-            createChatSession({
-              id: chat.id,
-              title: chat.title,
-              pinned: chat.pinned,
-              archived: chat.archived,
-              messages: null
-            })
-          )
-        );
-        setActiveChatId(chats[0].id);
-      } else {
-        if (chatView === "active") {
-          handleNewChat();
-        } else {
-          setChatSessions([]);
-          setActiveChatId("");
-        }
-      }
+      await reloadChatsAfterClear();
     }
   };
 
   const handleClearAllMemory = async () => {
     try {
-      await fetch("/api/memory/clear", {
+      await fetch(buildApiUrl("/api/memory/clear"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ scope: "all" })
@@ -532,8 +563,8 @@ function App() {
   };
 
   return (
-    <View style={styles.layout} className="app-layout">
-      {(!isMobile || isSidebarOpen) ? (
+    <View style={styles.layout}>
+      {!isMobile || isSidebarOpen ? (
         <Sidebar
           isOpen={isSidebarOpen}
           isMobile={isMobile}
@@ -552,6 +583,7 @@ function App() {
           onDeleteChat={handleDeleteChat}
         />
       ) : null}
+
       <ChatPanel
         messages={activeChat?.messages || [initialAssistant]}
         prompt={prompt}
@@ -566,13 +598,14 @@ function App() {
         onModelChange={setSelectedModel}
         isSidebarOpen={isSidebarOpen}
         onToggleSidebar={() => setIsSidebarOpen((current) => !current)}
-        isRecommendationOpen={shouldShowRecommendations}
+        isRecommendationOpen={isRecommendationOpen}
         onToggleRecommendations={() => setIsRecommendationOpen((current) => !current)}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onEditLastUserMessage={handleEditLastUserMessage}
         onShowMapFromMessage={handleShowMapFromMessage}
       />
-      {shouldShowRecommendations ? (
+
+      {isRecommendationOpen ? (
         <MapPanel
           isMobile={isMobile}
           places={activeChat?.places || []}
@@ -581,6 +614,7 @@ function App() {
           onClose={() => setIsRecommendationOpen(false)}
         />
       ) : null}
+
       {isSettingsOpen ? (
         <SettingsModal
           onClose={() => setIsSettingsOpen(false)}

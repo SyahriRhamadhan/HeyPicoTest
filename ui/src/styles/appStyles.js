@@ -1,33 +1,22 @@
-import { StyleSheet } from "react-native";
+import { Platform, StyleSheet } from "react-native";
+
+const isWeb = Platform.OS === "web";
 
 export const styles = StyleSheet.create({
   layout: {
-    height: "100vh",
+    flex: 1,
     width: "100%",
     backgroundColor: "#1f1f1f",
     flexDirection: "row",
-    color: "#ececec",
     overflow: "hidden"
   },
   sidebar: {
     width: 260,
-    height: "100vh",
     backgroundColor: "#171717",
     borderRightWidth: 1,
     borderColor: "#2b2b2b",
     padding: 14,
-    gap: 12,
-    overflow: "auto"
-  },
-  sidebarCollapsed: {
-    width: 64,
-    height: "100vh",
-    backgroundColor: "#171717",
-    borderRightWidth: 1,
-    borderColor: "#2b2b2b",
-    padding: 10,
-    alignItems: "center",
-    overflow: "auto"
+    gap: 12
   },
   sidebarHeader: {
     flexDirection: "row",
@@ -43,11 +32,6 @@ export const styles = StyleSheet.create({
     borderRadius: 9,
     alignItems: "center",
     justifyContent: "center"
-  },
-  sidebarToggleText: {
-    color: "#d6d6d6",
-    fontWeight: "700",
-    fontSize: 12
   },
   sidebarBrand: {
     color: "#f5f5f5",
@@ -71,8 +55,12 @@ export const styles = StyleSheet.create({
     color: "#ececec",
     fontWeight: "600"
   },
+  historyScroll: {
+    flex: 1
+  },
   historyList: {
-    gap: 4
+    gap: 4,
+    paddingBottom: 12
   },
   historyViewTabs: {
     flexDirection: "row",
@@ -110,7 +98,6 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 2
   },
   sidebarFooter: {
-    marginTop: "auto",
     paddingTop: 10
   },
   settingsButton: {
@@ -232,13 +219,10 @@ export const styles = StyleSheet.create({
   },
   chatPanel: {
     flex: 1,
-    justifyContent: "space-between",
-    height: "100vh",
-    overflow: "hidden"
+    justifyContent: "space-between"
   },
   mapPanel: {
-    width: 460,
-    height: "100vh",
+    width: isWeb ? 460 : "100%",
     borderRadius: 0,
     borderTopWidth: 0,
     borderBottomWidth: 0,
@@ -250,8 +234,6 @@ export const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     top: "28%",
-    width: "100%",
-    height: "auto",
     zIndex: 55,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
@@ -290,14 +272,6 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between"
   },
-  headerChipButton: {
-    borderWidth: 1,
-    borderColor: "#3a3a3a",
-    backgroundColor: "#242424",
-    borderRadius: 999,
-    paddingVertical: 6,
-    paddingHorizontal: 10
-  },
   iconButton: {
     borderWidth: 1,
     borderColor: "#3a3a3a",
@@ -307,11 +281,6 @@ export const styles = StyleSheet.create({
     height: 30,
     alignItems: "center",
     justifyContent: "center"
-  },
-  headerChipButtonText: {
-    color: "#d6d6d6",
-    fontSize: 12,
-    fontWeight: "600"
   },
   panelHeaderText: {
     color: "#f0f0f0",
@@ -401,7 +370,6 @@ export const styles = StyleSheet.create({
     fontWeight: "600"
   },
   inputBar: {
-    borderTopWidth: 1,
     borderColor: "#2e2e2e",
     borderWidth: 1,
     backgroundColor: "#2b2b2b",
@@ -412,9 +380,11 @@ export const styles = StyleSheet.create({
     alignItems: "center"
   },
   composerWrap: {
-    marginHorizontal: "auto",
-    marginBottom: 18,
-    width: "min(860px, calc(100% - 44px))",
+    alignSelf: "center",
+    width: "100%",
+    maxWidth: 860,
+    paddingHorizontal: 22,
+    paddingBottom: 18,
     gap: 6
   },
   inputHintText: {
@@ -445,13 +415,17 @@ export const styles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.6
   },
-  buttonText: { color: "#111", fontWeight: "700" },
-  locationButtonText: { color: "#ffffff" },
+  buttonText: {
+    color: "#111",
+    fontWeight: "700"
+  },
   panelBody: {
     flex: 1,
-    padding: 14,
+    padding: 14
+  },
+  panelBodyContent: {
     gap: 12,
-    overflow: "auto"
+    paddingBottom: 14
   },
   mapPanelBodyMobile: {
     padding: 10
@@ -472,14 +446,15 @@ export const styles = StyleSheet.create({
     marginTop: 5,
     fontSize: 13
   },
+  linkButton: {
+    alignSelf: "flex-start",
+    marginTop: 6
+  },
   linkInline: {
     color: "#7fc7ff",
-    fontSize: 13,
-    marginTop: 6,
-    display: "inline-block"
+    fontSize: 13
   },
   mapFrame: {
-    flex: 1,
     minHeight: 460,
     borderRadius: 10,
     borderWidth: 1,
@@ -493,14 +468,28 @@ export const styles = StyleSheet.create({
     height: "100%",
     alignItems: "center",
     justifyContent: "center",
-    padding: 12
+    padding: 12,
+    gap: 10
   },
   mutedText: {
     color: "#9f9f9f",
     textAlign: "center"
   },
+  nativeMapButton: {
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: "#3569d4",
+    backgroundColor: "#1d4ed8",
+    borderRadius: 999,
+    paddingVertical: 10,
+    paddingHorizontal: 16
+  },
+  nativeMapButtonText: {
+    color: "#fff",
+    fontWeight: "600"
+  },
   modalOverlay: {
-    position: "fixed",
+    position: "absolute",
     top: 0,
     right: 0,
     bottom: 0,
@@ -510,7 +499,7 @@ export const styles = StyleSheet.create({
     justifyContent: "flex-end"
   },
   modalBackdrop: {
-    position: "fixed",
+    position: "absolute",
     top: 0,
     right: 0,
     bottom: 0,
@@ -576,7 +565,90 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center"
   },
-  modalCloseButtonText: {
-    color: "#bcbcbc"
+  optionPickerWrap: {
+    position: "relative",
+    zIndex: 2
+  },
+  optionPickerButton: {
+    minHeight: 44,
+    borderWidth: 1,
+    borderColor: "#3a3a3a",
+    backgroundColor: "#242424",
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    justifyContent: "center"
+  },
+  optionPickerButtonCompact: {
+    minWidth: 180,
+    maxWidth: 220
+  },
+  optionPickerButtonDisabled: {
+    opacity: 0.5
+  },
+  optionPickerButtonText: {
+    color: "#ececec",
+    fontSize: 13
+  },
+  optionPickerMenu: {
+    marginTop: 6,
+    maxHeight: 220,
+    borderWidth: 1,
+    borderColor: "#3a3a3a",
+    backgroundColor: "#1f1f1f",
+    borderRadius: 14,
+    overflow: "hidden"
+  },
+  optionPickerScroll: {
+    maxHeight: 220
+  },
+  optionPickerItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 12
+  },
+  optionPickerItemActive: {
+    backgroundColor: "#2b2b2b"
+  },
+  optionPickerItemText: {
+    color: "#cdd4df",
+    fontSize: 13
+  },
+  optionPickerItemTextActive: {
+    color: "#ffffff",
+    fontWeight: "600"
+  },
+  iconGlyph: {
+    color: "#d6d6d6",
+    fontSize: 11,
+    fontWeight: "700"
+  },
+  iconGlyphLight: {
+    color: "#ececec",
+    fontSize: 11,
+    fontWeight: "700"
+  },
+  iconGlyphDark: {
+    color: "#111",
+    fontSize: 11,
+    fontWeight: "700"
+  },
+  iconGlyphMuted: {
+    color: "#b9c2d0",
+    fontSize: 11,
+    fontWeight: "700"
+  },
+  iconGlyphSmallAccent: {
+    color: "#9dc1ff",
+    fontSize: 10,
+    fontWeight: "700"
+  },
+  iconGlyphDanger: {
+    color: "#ff9d9d",
+    fontSize: 11,
+    fontWeight: "700"
+  },
+  iconGlyphSuccess: {
+    color: "#a7f3d0",
+    fontSize: 11,
+    fontWeight: "700"
   }
 });
